@@ -214,7 +214,7 @@ def is_standard(fieldname):
 
 
 @lru_cache(maxsize=1024)
-def extract_fieldnames(field):
+def _extract_fieldnames_cached(field):
 	from frappe.database.schema import SPECIAL_CHAR_PATTERN
 
 	if not SPECIAL_CHAR_PATTERN.findall(field):
@@ -228,6 +228,23 @@ def extract_fieldnames(field):
 			return ["*"]
 
 	return columns
+
+
+def extract_fieldnames(field):
+	"""Extract fieldnames from a field string or dict
+	
+	Args:
+		field: Can be a string (field name) or dict (nested child table)
+	
+	Returns:
+		List of field names, or empty list for dict fields
+	"""
+	# Skip dictionary fields (nested child tables) - they are handled separately
+	if isinstance(field, dict):
+		return []
+
+	# Use cached version for strings
+	return _extract_fieldnames_cached(field)
 
 
 def get_meta_and_docfield(fieldname, data):
@@ -737,7 +754,7 @@ def get_stats(stats, doctype, filters=None):
 
 	try:
 		db_columns = frappe.db.get_table_columns(doctype)
-	except frappe.db.InternalError, frappe.db.ProgrammingError:
+	except (frappe.db.InternalError, frappe.db.ProgrammingError):
 		# raised when _user_tags column is added on the fly
 		# raised if its a virtual doctype
 		db_columns = []

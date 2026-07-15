@@ -42,7 +42,7 @@ class Reminder(Document):
 		if self.notified:
 			return
 
-		self.db_set("notified", 1, update_modified=False)
+		sent = False
 
 		try:
 			notification = frappe.new_doc("Notification Log")
@@ -52,8 +52,27 @@ class Reminder(Document):
 			notification.document_name = self.reminder_docname
 			notification.subject = self.description
 			notification.insert()
+			sent = True
 		except Exception:
 			self.log_error("Failed to send reminder")
+
+		# HRMS mobile app reads from PWA Notification doctype.
+		# Create a matching entry so reminder alerts are visible in-app and can trigger push notifications.
+		if frappe.db.exists("DocType", "PWA Notification"):
+			try:
+				pwa_notification = frappe.new_doc("PWA Notification")
+				pwa_notification.to_user = self.user
+				pwa_notification.from_user = self.user
+				pwa_notification.message = self.description
+				pwa_notification.reference_document_type = self.reminder_doctype or "Reminder"
+				pwa_notification.reference_document_name = self.reminder_docname or self.name
+				pwa_notification.insert(ignore_permissions=True)
+				sent = True
+			except Exception:
+				self.log_error("Failed to send reminder as PWA notification")
+
+		if sent:
+			self.db_set("notified", 1, update_modified=False)
 
 
 @frappe.whitelist()
@@ -77,15 +96,24 @@ def send_reminders():
 	# Ensure that we send all reminders that might be before next job execution.
 	job_freq = 15 * 60  # 15 minutes, as specified in hooks.py
 	upper_threshold = add_to_date(now_datetime(), seconds=job_freq, as_string=True, as_datetime=True)
-	lower_threshold = add_to_date(now_datetime(), hours=-1, as_string=True, as_datetime=True)
+	backlog_minutes = cint(frappe.conf.get("reminder_backlog_minutes", 60 * 24 * 30))
+	lower_threshold = add_to_date(
+		now_datetime(),
+		minutes=-max(backlog_minutes, 60),
+		as_string=True,
+		as_datetime=True,
+	)
+	batch_size = max(cint(frappe.conf.get("reminder_batch_size", 500)), 1)
 
 	pending_reminders = frappe.get_all(
 		"Reminder",
 		filters=[
 			("remind_at", "<=", upper_threshold),
-			("remind_at", ">=", lower_threshold),  # dont send too old reminders if failed to send
+			("remind_at", ">=", lower_threshold),
 			("notified", "=", 0),
 		],
+		order_by="remind_at asc",
+		limit_page_length=batch_size,
 		pluck="name",
 		ignore_ifnull=True,
 	)

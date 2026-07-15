@@ -36,6 +36,7 @@ app_include_js = [
 app_include_css = [
 	"desk.bundle.css",
 	"report.bundle.css",
+	"/files/frappe_system_theme.css",
 ]
 app_include_icons = [
 	"/assets/frappe/icons/lucide/icons.svg",
@@ -50,7 +51,7 @@ doctype_js = {
 }
 
 web_include_js = ["website_script.js"]
-web_include_css = []
+web_include_css = ["/files/frappe_system_theme.css"]
 web_include_icons = [
 	"/assets/frappe/icons/lucide/icons.svg",
 	"/assets/frappe/icons/timeless/icons.svg",
@@ -300,6 +301,8 @@ setup_wizard_exception = [
 before_migrate = ["frappe.core.doctype.patch_log.patch_log.before_migrate"]
 after_migrate = [
 	"frappe.website.doctype.website_theme.website_theme.after_migrate",
+	"frappe.core.doctype.system_settings.system_theme.generate_system_theme_css",
+	"frappe.desk.doctype.workspace_sidebar.workspace_sidebar.sync_system_tools_sidebar",
 	"frappe.search.sqlite_search.build_index_in_background",
 ]
 

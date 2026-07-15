@@ -32,6 +32,9 @@ class InstalledApplications(Document):
 		app_wise_setup_details = self.get_app_wise_setup_details()
 
 		self.delete_key("installed_applications")
+		# Some legacy sites may have no resolved app list during first migrate pass.
+		# Keep the child table initialized to avoid None iteration inside save checks.
+		self.set("installed_applications", [])
 		for app in frappe.utils.get_installed_apps_info():
 			has_setup_wizard = 1
 			setup_complete = app_wise_setup_details.get(app.get("app_name")) or 0

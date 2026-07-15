@@ -250,6 +250,10 @@ def http_cache(
 				frappe.local.response_headers.set("Cache-Control", cache_headers)
 			return ret
 
+		# Preserve whitelist attribute from decorated function
+		if hasattr(func, 'whitelisted'):
+			inner.whitelisted = func.whitelisted
+
 		return inner
 
 	return outer

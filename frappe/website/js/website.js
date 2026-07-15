@@ -288,7 +288,14 @@ $.extend(frappe, {
 	},
 
 	highlight_code_blocks: function () {
-		hljs.initHighlighting();
+		if (typeof hljs === "undefined" || !hljs) return;
+		if (typeof hljs.highlightAll === "function") {
+			hljs.highlightAll();
+			return;
+		}
+		if (typeof hljs.initHighlighting === "function") {
+			hljs.initHighlighting();
+		}
 	},
 	bind_filters: function () {
 		// set in select

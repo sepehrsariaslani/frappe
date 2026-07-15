@@ -90,7 +90,12 @@ class WebsiteTheme(Document):
 			website_settings.clear_cache()
 
 	def generate_bootstrap_theme(self):
+		from shutil import which
 		from subprocess import PIPE, Popen
+
+		if not which("node"):
+			frappe.logger().warning("Skipping Website Theme compilation because node is not installed.")
+			return
 
 		# create theme file in site public files folder
 		folder_path = abspath(frappe.utils.get_files_path("website_theme", is_private=False))

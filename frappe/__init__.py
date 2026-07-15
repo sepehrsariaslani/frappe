@@ -479,14 +479,24 @@ def whitelist(allow_guest=False, xss_safe=False, methods=None):
 def is_whitelisted(method):
 	from frappe.utils import sanitize_html
 
+	resolved_method = method
+	if method not in whitelisted:
+		method_module = getattr(method, "__module__", None)
+		method_name = getattr(method, "__name__", None)
+		if method_module and method_name:
+			for fn in whitelisted:
+				if getattr(fn, "__module__", None) == method_module and getattr(fn, "__name__", None) == method_name:
+					resolved_method = fn
+					break
+
 	is_guest = session["user"] == "Guest"
-	if method not in whitelisted or (is_guest and method not in guest_methods):
+	if resolved_method not in whitelisted or (is_guest and resolved_method not in guest_methods):
 		summary = _("You are not permitted to access this resource. Login to access")
 		detail = _("Function {0} is not whitelisted.").format(bold(f"{method.__module__}.{method.__name__}"))
 		msg = f"<details><summary>{summary}</summary>{detail}</details>"
 		throw(msg, PermissionError, title=_("Method Not Allowed"))
 
-	if is_guest and method not in xss_safe_methods:
+	if is_guest and resolved_method not in xss_safe_methods:
 		# strictly sanitize form_dict
 		# escapes html characters like <> except for predefined tags like a, b, ul etc.
 		for key, value in form_dict.items():

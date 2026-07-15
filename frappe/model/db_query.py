@@ -174,6 +174,9 @@ class DatabaseQuery:
 		}.items():
 			if isinstance(_filters, str):
 				_filters = json.loads(_filters)
+			if self.doctype == "GP Pinned Project" and isinstance(_filters, dict):
+				# handled via custom join/condition logic in add_custom_conditions
+				_filters = {key: value for key, value in _filters.items() if key != "project.archived_at"}
 			if not isinstance(_filters, Filters):
 				_filters = Filters(_filters, doctype=self.doctype)
 			setattr(self, k, _filters)
@@ -415,6 +418,12 @@ from {tables}
 		# remove empty strings / nulls in fields
 		self.fields = [f for f in self.fields if f]
 
+		# Handle child table fields (dict fields like {"members": ["user"]})
+		# These will be processed later in the query execution
+		# Remove child table fields (dict fields like {"members": ["user"]})
+		# These are handled separately and should not be processed as regular fields
+		self.fields = [f for f in self.fields if not isinstance(f, dict)]
+
 		# convert child_table.fieldname to `tabChild DocType`.`fieldname`
 		for field in self.fields:
 			if "." in field:
@@ -522,6 +531,10 @@ from {tables}
 				_raise_exception()
 
 		for field in self.fields:
+			# Skip dictionary fields (nested child tables) - they are handled separately
+			if isinstance(field, dict):
+				continue
+			
 			lower_field = field.lower().strip()
 
 			if SUB_QUERY_PATTERN.match(field):
@@ -550,6 +563,11 @@ from {tables}
 	def extract_tables(self):
 		"""extract tables from fields"""
 		self.tables = [f"`tab{self.doctype}`"]
+		
+		# Add join for GP Pinned Project to GP Project for archived_at filtering
+		if self.doctype == "GP Pinned Project" and "GP Project" not in [t.replace("`tab", "").replace("`", "") for t in self.tables]:
+			# Add GP Project as a link table for filtering
+			self.append_link_table("GP Project", "project")
 		sql_functions = [
 			"dayofyear(",
 			"extract(",
@@ -639,6 +657,9 @@ from {tables}
 
 		if len(self.tables) > 1 or len(self.link_tables) > 0:
 			for idx, field in enumerate(self.fields):
+				# Skip dictionary fields (child table fields)
+				if isinstance(field, dict):
+					continue
 				if field is not None and "." not in field and not _in_standard_sql_methods(field):
 					self.fields[idx] = f"{self.tables[0]}.{field}"
 
@@ -669,6 +690,26 @@ from {tables}
 		self.grouped_or_conditions = []
 		self.build_filter_conditions(self.filters, self.conditions)
 		self.build_filter_conditions(self.or_filters, self.grouped_or_conditions)
+
+		# Add custom conditions for GP Pinned Project
+		if self.doctype == "GP Pinned Project":
+			# Filter by user and exclude archived projects
+			self.conditions.append(f"`tab{self.doctype}`.`user` = {frappe.db.escape(frappe.session.user)}")
+			# Check if GP Project table is joined
+			project_table = None
+			for link in self.link_tables:
+				if link.doctype == "GP Project":
+					project_table = link.table_alias
+					break
+			if project_table:
+				self.conditions.append(f"({project_table}.`archived_at` IS NULL OR {project_table}.`archived_at` = '')")
+
+			# Fix ambiguous ORDER BY for creation field
+			if self.order_by and 'creation' in self.order_by.lower():
+				if 'desc' in self.order_by.lower():
+					self.order_by = f"`tab{self.doctype}`.creation desc"
+				else:
+					self.order_by = f"`tab{self.doctype}`.creation asc"
 
 		# match conditions
 		if not self.flags.ignore_permissions:

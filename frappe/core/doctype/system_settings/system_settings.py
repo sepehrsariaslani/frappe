@@ -36,9 +36,7 @@ class SystemSettings(Document):
 		country: DF.Link | None
 		currency: DF.Link | None
 		currency_precision: DF.Literal["", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-		date_format: DF.Literal[
-			"yyyy-mm-dd", "dd-mm-yyyy", "dd/mm/yyyy", "dd.mm.yyyy", "mm/dd/yyyy", "mm-dd-yyyy"
-		]
+		date_format: DF.Literal["yyyy-mm-dd", "dd-mm-yyyy", "dd/mm/yyyy", "dd.mm.yyyy", "mm/dd/yyyy", "mm-dd-yyyy"]
 		default_app: DF.Literal[None]
 		delete_background_exported_reports_after: DF.Int
 		deny_multiple_sessions: DF.Check
@@ -59,9 +57,7 @@ class SystemSettings(Document):
 		enable_telemetry: DF.Check
 		enable_two_factor_auth: DF.Check
 		encrypt_backup: DF.Check
-		first_day_of_the_week: DF.Literal[
-			"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-		]
+		first_day_of_the_week: DF.Literal["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 		float_precision: DF.Literal["", "2", "3", "4", "5", "6", "7", "8", "9"]
 		force_user_to_reset_password: DF.Int
 		force_web_capture_mode_for_uploads: DF.Check
@@ -80,18 +76,7 @@ class SystemSettings(Document):
 		max_report_rows: DF.Int
 		max_signups_allowed_per_hour: DF.Int
 		minimum_password_score: DF.Literal["1", "2", "3", "4"]
-		number_format: DF.Literal[
-			"#,###.##",
-			"#.###,##",
-			"# ###.##",
-			"# ###,##",
-			"#'###.##",
-			"#, ###.##",
-			"#,##,###.##",
-			"#,###.###",
-			"#.###",
-			"#,###",
-		]
+		number_format: DF.Literal["#,###.##", "#.###,##", "# ###.##", "# ###,##", "#'###.##", "#, ###.##", "#,##,###.##", "#,###.###", "#.###", "#,###"]
 		only_allow_system_managers_to_upload_public_files: DF.Check
 		otp_issuer_name: DF.Data | None
 		otp_sms_template: DF.SmallText | None
@@ -107,6 +92,32 @@ class SystemSettings(Document):
 		store_attached_pdf_document: DF.Check
 		strip_exif_metadata_from_uploaded_images: DF.Check
 		sync_timeout: DF.Int
+		system_theme_background_dark: DF.Color | None
+		system_theme_background_light: DF.Color | None
+		system_theme_border_dark: DF.Color | None
+		system_theme_border_light: DF.Color | None
+		system_theme_control_bg_dark: DF.Color | None
+		system_theme_control_bg_light: DF.Color | None
+		system_theme_danger_dark: DF.Color | None
+		system_theme_danger_light: DF.Color | None
+		system_theme_enabled: DF.Check
+		system_theme_info_dark: DF.Color | None
+		system_theme_info_light: DF.Color | None
+		system_theme_navbar_bg_dark: DF.Color | None
+		system_theme_navbar_bg_light: DF.Color | None
+		system_theme_preset: DF.Literal["Default", "Ocean", "Emerald", "Sunset"]
+		system_theme_primary_dark: DF.Color | None
+		system_theme_primary_light: DF.Color | None
+		system_theme_success_dark: DF.Color | None
+		system_theme_success_light: DF.Color | None
+		system_theme_surface_dark: DF.Color | None
+		system_theme_surface_light: DF.Color | None
+		system_theme_text_dark: DF.Color | None
+		system_theme_text_light: DF.Color | None
+		system_theme_text_muted_dark: DF.Color | None
+		system_theme_text_muted_light: DF.Color | None
+		system_theme_warning_dark: DF.Color | None
+		system_theme_warning_light: DF.Color | None
 		time_format: DF.Literal["HH:mm:ss", "HH:mm"]
 		time_zone: DF.Literal[None]
 		two_factor_method: DF.Literal["OTP App", "SMS", "Email"]
@@ -206,6 +217,9 @@ class SystemSettings(Document):
 	def on_update(self):
 		self.set_defaults()
 		clear_system_settings_cache()
+		from frappe.core.doctype.system_settings.system_theme import generate_system_theme_css
+
+		generate_system_theme_css(doc=self)
 
 		if frappe.flags.update_last_reset_password_date:
 			update_last_reset_password_date()
@@ -316,3 +330,13 @@ def snapshot_report_scheduler(enable: bool = False, frequency: str = "Daily"):
 	disable_duckdb_cron_job()
 	if enable:
 		enable_duckdb_cron_job(frequency)
+
+
+@frappe.whitelist()
+def get_theme_preset(preset=None):
+	if "System Manager" not in frappe.get_roles():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	from frappe.core.doctype.system_settings.system_theme import get_theme_preset_values
+
+	return get_theme_preset_values(preset)

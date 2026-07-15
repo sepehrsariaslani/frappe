@@ -807,10 +807,12 @@ def serve(
 	"Start development web server"
 	import frappe.app
 
-	if not context.sites:
-		site = None
-	else:
+	# If --site (or FRAPPE_SITE) is explicitly set, keep single-site behavior.
+	# Otherwise serve in host-based multitenant mode.
+	if (context.get("site_arg") or os.environ.get("FRAPPE_SITE")) and context.sites:
 		site = context.sites[0]
+	else:
+		site = None
 	with CodeCoverage(with_coverage, "frappe"):
 		if with_coverage:
 			# unable to track coverage with threading enabled

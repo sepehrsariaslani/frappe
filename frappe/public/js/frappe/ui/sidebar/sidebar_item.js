@@ -32,11 +32,18 @@ frappe.ui.sidebar_item.TypeLink = class SidebarItem {
 
 				path = frappe.utils.generate_route(args);
 			} else if (this.item.link_type == "Workspace") {
-				let workspaces = frappe.workspaces[frappe.router.slug(this.item.link_to)];
-				if (workspaces && workspaces.public) {
-					path = "/desk/" + frappe.router.slug(this.item.link_to);
+				let workspace_slug = frappe.router.slug(this.item.link_to || "");
+				let workspace = frappe.workspaces && frappe.workspaces[workspace_slug];
+				if (!workspace) {
+					if (this.item.route) {
+						path = this.item.route;
+					}
+					return path;
+				}
+				if (workspace.public) {
+					path = "/desk/" + workspace_slug;
 				} else {
-					path = "/desk/private/" + frappe.router.slug(this.item.link_to);
+					path = "/desk/private/" + workspace_slug;
 				}
 
 				if (this.item.route) {
@@ -60,29 +67,16 @@ frappe.ui.sidebar_item.TypeLink = class SidebarItem {
 					let filters_json = JSON.parse(
 						frappe.utils.get_filter_as_json(JSON.parse(this.item.filters))
 					);
-					filters_json = this.transform_filters(filters_json);
 					if (this.item.link_type == "DocType") {
 						args.doc_view = "List";
 						args.route_options = filters_json;
 					}
-				} else if (this.item.route_options && this.item.link_type == "DocType") {
-					args.doc_view = "List";
-					args.route_options = JSON.parse(this.item.route_options);
 				}
 				path = frappe.utils.generate_route(args);
 			}
 		}
 		return path;
 	}
-	transform_filters(filters_json) {
-		for (const [key, value] of Object.entries(filters_json)) {
-			if (Array.isArray(value)) {
-				filters_json[key] = value[1];
-			}
-		}
-		return filters_json;
-	}
-
 	prepare() {}
 	make() {
 		this.path = this.get_path();
@@ -111,8 +105,10 @@ frappe.ui.sidebar_item.TypeLink = class SidebarItem {
 		}
 	}
 	get_shortcut_html(shortcut) {
-		shortcut = frappe.ui.keys.get_shortcut_label(shortcut);
-		return `<span class="keyboard-shortcut">${shortcut}</span>`;
+		if (frappe.utils.is_mac()) {
+			shortcut = shortcut.replace("Ctrl+", "⌘");
+		}
+		return `<span class="sidebar-item-suffix keyboard-shortcut">${shortcut}</span>`;
 	}
 	setup_editing_controls() {
 		this.menu_items = this.get_menu_items();

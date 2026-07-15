@@ -668,7 +668,7 @@ frappe.ui.Sidebar = class Sidebar {
 			} else {
 				const entity = this.entity_from_route(route);
 				const module = router?.meta?.module;
-				target = this.resolve_sidebar(entity, module);
+				target = this.resolve_sidebar(entity, module, route);
 			}
 
 			// only rebuild when the target differs from the current sidebar, so
@@ -701,7 +701,7 @@ frappe.ui.Sidebar = class Sidebar {
 	// Pick which workspace sidebar to show for the current route.
 	// Returns a workspace title (or null). Rules are ordered by priority:
 	// the first one that yields a sidebar wins.
-	resolve_sidebar(entity, module) {
+	resolve_sidebar(entity, module, route = []) {
 		let candidates = this.get_workspace_sidebars(entity);
 		this.preferred_sidebars = candidates;
 
@@ -728,9 +728,15 @@ frappe.ui.Sidebar = class Sidebar {
 			if (candidates.length === 1) {
 				sidebar_name = candidates[0];
 			} else if (candidates.length > 1) {
-				sidebar_name = candidates.find((c) => c.toLowerCase() === module?.toLowerCase());
+				sidebar_name =
+					this.get_preferred_sidebar(candidates, module, entity, route) ||
+					candidates.find((c) => c.toLowerCase() === module?.toLowerCase());
 			} else if (module) {
-				sidebar_name = this.resolve_module_sidebar(module);
+				if (this.is_employee_context(entity, module, route)) {
+					sidebar_name = this.get_existing_hr_sidebar() || this.resolve_module_sidebar(module);
+				} else {
+					sidebar_name = this.resolve_module_sidebar(module);
+				}
 			}
 		}
 		if (!sidebar_name && candidates.length > 0) {
@@ -750,6 +756,41 @@ frappe.ui.Sidebar = class Sidebar {
 	}
 	// Public entry point used by page/report views to switch the sidebar
 	// to the one for a module. Resolution itself lives in resolve_module_sidebar.
+	get_preferred_sidebar(sidebars, module, entity_name, route) {
+		const hr_sidebar = this.get_existing_hr_sidebar();
+		if (this.is_employee_context(entity_name, module, route) && hr_sidebar && sidebars.includes(hr_sidebar)) {
+			return hr_sidebar;
+		}
+
+		const module_sidebar = this.get_workspace_for_module(module);
+		if (module_sidebar && sidebars.includes(module_sidebar)) {
+			return module_sidebar;
+		}
+
+		return sidebars[0];
+	}
+	get_existing_hr_sidebar() {
+		const candidates = ["HR Setup", "Human Resources"];
+		return candidates.find((sidebar) => frappe.boot.workspace_sidebar_item[sidebar.toLowerCase()]);
+	}
+	is_employee_context(entity_name, module, route) {
+		const employee_links = new Set([
+			"employee",
+			"job family",
+			"job grade",
+			"individual development plan",
+			"employee checkin",
+			"leave application",
+			"appraisal",
+		]);
+		const normalized_entity = (entity_name || "").toString().toLowerCase();
+		const normalized_module = (module || "").toString().toLowerCase();
+
+		if (employee_links.has(normalized_entity)) return true;
+		if (normalized_module.includes("human resource") || normalized_module === "hr") return true;
+
+		return false;
+	}
 	show_sidebar_for_module(module) {
 		if (this.sidebar_title && this.preferred_sidebars.includes(this.sidebar_title)) {
 			this.set_active_workspace_item();
@@ -764,10 +805,11 @@ frappe.ui.Sidebar = class Sidebar {
 
 	get_workspace_sidebars(link_to) {
 		let sidebars = [];
+		const target = (link_to || "").toString().toLowerCase();
 		Object.entries(this.all_sidebar_items).forEach(([name, sidebar]) => {
 			const { items, label } = sidebar;
 			items.forEach((item) => {
-				if (item.link_to === link_to) {
+				if ((item.link_to || "").toString().toLowerCase() === target) {
 					sidebars.push(label || name);
 				}
 			});

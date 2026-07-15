@@ -122,7 +122,39 @@
   "column_break_nebx",
   "allow_clearing_link_fields",
   "api_logging_section",
-  "log_api_requests"
+  "log_api_requests",
+  "system_theme_tab",
+  "system_theme_section",
+  "system_theme_enabled",
+  "system_theme_preset",
+  "system_theme_reset_colors",
+  "system_theme_preview",
+  "system_theme_light_section",
+  "system_theme_primary_light",
+  "system_theme_background_light",
+  "system_theme_surface_light",
+  "system_theme_text_light",
+  "system_theme_text_muted_light",
+  "system_theme_border_light",
+  "system_theme_control_bg_light",
+  "system_theme_navbar_bg_light",
+  "system_theme_success_light",
+  "system_theme_warning_light",
+  "system_theme_danger_light",
+  "system_theme_info_light",
+  "system_theme_dark_section",
+  "system_theme_primary_dark",
+  "system_theme_background_dark",
+  "system_theme_surface_dark",
+  "system_theme_text_dark",
+  "system_theme_text_muted_dark",
+  "system_theme_border_dark",
+  "system_theme_control_bg_dark",
+  "system_theme_navbar_bg_dark",
+  "system_theme_success_dark",
+  "system_theme_warning_dark",
+  "system_theme_danger_dark",
+  "system_theme_info_dark"
  ],
  "fields": [
   {
@@ -151,7 +183,6 @@
    "fieldname": "time_zone",
    "fieldtype": "Select",
    "label": "Time Zone",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -811,6 +842,19 @@
    "label": "Allowed Doctypes for Guest Uploads"
   },
   {
+   "fieldname": "snapshot_reports_section",
+   "fieldtype": "Section Break",
+   "label": "Snapshot Reports",
+   "show_description_on_click": 1
+  },
+  {
+   "default": "0",
+   "documentation_url": "https://docs.frappe.io/framework/user/en/desk/reports/script-report#snapshot-reports",
+   "fieldname": "enable_snapshot_reports",
+   "fieldtype": "Check",
+   "label": "Enable Snapshot Reports"
+  },
+  {
    "default": "Daily",
    "depends_on": "eval: doc.enable_snapshot_reports",
    "fieldname": "frequency",
@@ -825,23 +869,200 @@
    "label": "Sync Timeout (Seconds)"
   },
   {
-   "fieldname": "snapshot_reports_section",
+   "fieldname": "system_theme_tab",
+   "fieldtype": "Tab Break",
+   "label": "Theme"
+  },
+  {
+   "fieldname": "system_theme_section",
    "fieldtype": "Section Break",
-   "label": "Snapshot Reports",
-   "show_description_on_click": 1
+   "label": "Theme Manager"
   },
   {
    "default": "0",
-   "documentation_url": "https://docs.frappe.io/framework/user/en/desk/reports/script-report#snapshot-reports",
-   "fieldname": "enable_snapshot_reports",
+   "description": "Enable site-wide theme overrides for Desk and Website.",
+   "fieldname": "system_theme_enabled",
    "fieldtype": "Check",
-   "label": "Enable Snapshot Reports"
+   "label": "Enable Theme Manager"
+  },
+  {
+   "fieldname": "system_theme_preset",
+   "fieldtype": "Select",
+   "label": "Theme Preset",
+   "options": "Default\nOcean\nEmerald\nSunset"
+  },
+  {
+   "fieldname": "system_theme_reset_colors",
+   "fieldtype": "Button",
+   "label": "Reset Colors to Preset"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_preview",
+   "fieldtype": "HTML",
+   "label": "Theme Preview"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_light_section",
+   "fieldtype": "Section Break",
+   "label": "Light Mode Colors"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_primary_light",
+   "fieldtype": "Color",
+   "label": "Primary"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_background_light",
+   "fieldtype": "Color",
+   "label": "Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_surface_light",
+   "fieldtype": "Color",
+   "label": "Surface"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_text_light",
+   "fieldtype": "Color",
+   "label": "Text"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_text_muted_light",
+   "fieldtype": "Color",
+   "label": "Text Muted"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_border_light",
+   "fieldtype": "Color",
+   "label": "Border"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_control_bg_light",
+   "fieldtype": "Color",
+   "label": "Control Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_navbar_bg_light",
+   "fieldtype": "Color",
+   "label": "Navbar Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_success_light",
+   "fieldtype": "Color",
+   "label": "Success"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_warning_light",
+   "fieldtype": "Color",
+   "label": "Warning"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_danger_light",
+   "fieldtype": "Color",
+   "label": "Danger"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_info_light",
+   "fieldtype": "Color",
+   "label": "Info"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_dark_section",
+   "fieldtype": "Section Break",
+   "label": "Dark Mode Colors"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_primary_dark",
+   "fieldtype": "Color",
+   "label": "Primary"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_background_dark",
+   "fieldtype": "Color",
+   "label": "Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_surface_dark",
+   "fieldtype": "Color",
+   "label": "Surface"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_text_dark",
+   "fieldtype": "Color",
+   "label": "Text"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_text_muted_dark",
+   "fieldtype": "Color",
+   "label": "Text Muted"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_border_dark",
+   "fieldtype": "Color",
+   "label": "Border"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_control_bg_dark",
+   "fieldtype": "Color",
+   "label": "Control Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_navbar_bg_dark",
+   "fieldtype": "Color",
+   "label": "Navbar Background"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_success_dark",
+   "fieldtype": "Color",
+   "label": "Success"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_warning_dark",
+   "fieldtype": "Color",
+   "label": "Warning"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_danger_dark",
+   "fieldtype": "Color",
+   "label": "Danger"
+  },
+  {
+   "depends_on": "eval:doc.system_theme_enabled==1",
+   "fieldname": "system_theme_info_dark",
+   "fieldtype": "Color",
+   "label": "Info"
   }
  ],
  "icon": "fa fa-cog",
  "issingle": 1,
  "links": [],
- "modified": "2026-07-01 16:09:59.407976",
+ "modified": "2026-07-15 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "System Settings",

@@ -19,23 +19,13 @@ login.bind_events = function () {
 		args.cmd = "login";
 		args.usr = ($("#login_email").val() || "").trim();
 		args.pwd = $("#login_password").val();
-		let hasError = false;
-		if (!args.usr) {
-			login.show_field_error("login_email", {{ _("Email is required.") | tojson }});
-			hasError = true;
+		if (!args.usr || !args.pwd) {
+			{# striptags is used to remove newlines, e is used for escaping #}
+			frappe.msgprint("{{ _('Both login and password required') | striptags | e }}");
+			return false;
 		}
-		if (!args.pwd) {
-			login.show_field_error("login_password", {{ _("Password is required.") | tojson }});
-			hasError = true;
-		}
-		if (hasError) return false;
-		login.call(args, null, "/api/method/login");
+		login.call(args, null, "/login");
 		return false;
-	});
-
-	$(".page-card-body input").on("input", function () {
-		$(this).closest(".form-group").removeClass("invalid").find(".field-error").text("");
-		$(this).closest(".page-card-body").removeClass("invalid").find(".login-error-banner").hide();
 	});
 
 	$(".form-signup").on("submit", function (event) {
@@ -45,12 +35,8 @@ login.bind_events = function () {
 		args.email = ($("#signup_email").val() || "").trim();
 		args.redirect_to = frappe.utils.sanitise_redirect(frappe.utils.get_url_arg("redirect-to"));
 		args.full_name = frappe.utils.xss_sanitise(($("#signup_fullname").val() || "").trim());
-		if (!args.email || !validate_email(args.email)) {
-			login.show_field_error("signup_email", {{ _("Please enter a valid email.") | tojson }});
-			return false;
-		}
-		if (!args.full_name) {
-			login.show_field_error("signup_fullname", {{ _("Full name is required.") | tojson }});
+		if (!args.email || !validate_email(args.email) || !args.full_name) {
+			login.set_status({{ _("Valid email and name required") | tojson }}, 'red');
 			return false;
 		}
 		login.call(args);
@@ -62,16 +48,12 @@ login.bind_events = function () {
 		var args = {};
 		args.cmd = "frappe.core.doctype.user.user.reset_password";
 		args.user = ($("#forgot_email").val() || "").trim();
-		if (!args.user || !validate_email(args.user)) {
-			login.show_field_error("forgot_email", {{ _("Invalid Email.") | tojson }});
+		if (!args.user) {
+			login.set_status({{ _("Valid Login id required.") | tojson }}, 'red');
 			return false;
 		}
 		login.call(args);
 		return false;
-	});
-
-	$("#forgot_email").on("input", function () {
-		$(".btn-forgot").prop("disabled", !$(this).val().trim());
 	});
 
 	$(".form-login-with-email-link").on("submit", function (event) {
@@ -79,14 +61,13 @@ login.bind_events = function () {
 		var args = {};
 		args.cmd = "frappe.www.login.send_login_link";
 		args.email = ($("#login_with_email_link_email").val() || "").trim();
-		if (!args.email || !validate_email(args.email)) {
-			login.show_field_error("login_with_email_link_email", {{ _("Invalid Email.") | tojson }});
+		if (!args.email) {
+			login.set_status({{ _("Valid Login id required.") | tojson }}, 'red');
 			return false;
 		}
 		login.call(args).then(() => {
-			$("section:visible .login-success-banner").css("display", "flex");
-			$("section:visible .resend-link").css("display", "flex");
-			$("section:visible .btn-login-with-email-link").text({{ _("Sent") | tojson }}).prop("disabled", true);
+			login.set_status({{ _("Login link sent to your email") | tojson }}, 'blue');
+			$("#login_with_email_link_email").val("");
 		}).catch(() => {
 			login.set_status({{ _("Send login link") | tojson }}, 'blue');
 		});
@@ -94,22 +75,15 @@ login.bind_events = function () {
 		return false;
 	});
 
-	$("#signup_fullname, #signup_email").on("input", function () {
-		var name = $("#signup_fullname").val().trim();
-		var email = $("#signup_email").val().trim();
-		$(".btn-signup").prop("disabled", !(name && email));
-	});
-
-	$(".btn-resend-link").on("click", function (e) {
-		e.preventDefault();
-		$(".form-login-with-email-link").trigger("submit");
-	});
-
 	$(".toggle-password").click(function () {
 		var input = $($(this).attr("toggle"));
-		var isPassword = input.attr("type") == "password";
-		input.attr("type", isPassword ? "text" : "password");
-		$(this).find("use").attr("href", isPassword ? "#es-line-hide" : "#es-line-preview");
+		if (input.attr("type") == "password") {
+			input.attr("type", "text");
+			$(this).text("پنهان")
+		} else {
+			input.attr("type", "password");
+			$(this).text("نمایش")
+		}
 	});
 
 	{% if ldap_settings and ldap_settings.enabled %}
@@ -143,17 +117,6 @@ login.reset_sections = function (hide) {
 		$("section.for-forgot").toggle(false);
 		$("section.for-login-with-email-link").toggle(false);
 		$("section.for-signup").toggle(false);
-		var $forms = $(".form-forgot, .form-signup, .form-login-with-email-link");
-		$forms.find("input:not([type='submit'])").val("");
-		$forms.find(".page-card-body").removeClass("invalid");
-		$forms.find(".form-group").removeClass("invalid").find(".field-error").text("");
-		$forms.find(".login-error-banner").hide();
-		$(".form-forgot .btn-forgot").prop("disabled", true).text({{ _("Send Link") | tojson }});
-		$(".form-signup .btn-signup").prop("disabled", true).text({{ _("Create Account") | tojson }});
-		$(".form-login-with-email-link .btn-login-with-email-link").prop("disabled", false).text({{ _("Send login link") | tojson }});
-		$(".btn-login-option.btn-login-with-email-link").prop("disabled", false);
-		$("section.for-login-with-email-link .login-success-banner").hide();
-		$("section.for-login-with-email-link .resend-link").hide();
 	}
 	$('section:not(.signup-disabled) .indicator').each(function () {
 		$(this).removeClass().addClass('indicator').addClass('blue')
@@ -182,7 +145,6 @@ login.forgot = function () {
 	login.reset_sections();
 	if ($("#login_email").val()) {
 		$("#forgot_email").val($("#login_email").val());
-		$(".btn-forgot").prop("disabled", false);
 	}
 	$(".for-forgot").toggle(true);
 	$("#forgot_email").focus();
@@ -225,22 +187,12 @@ login.set_status = function (message, color) {
 	}
 }
 
-login.show_field_error = function (input_id, message) {
-	var $formGroup = $("#" + input_id).closest(".form-group");
-	$formGroup.addClass("invalid").find(".field-error").text(message);
-};
-
-login.show_error_banner = function (message) {
-	$("section:visible .login-error-banner").css("display", "flex").find("span").text(message);
-};
-
 login.set_invalid = function (message) {
 	$(".login-content.page-card").addClass('invalid-login');
 	setTimeout(() => {
 		$(".login-content.page-card").removeClass('invalid-login');
 	}, 500)
 	login.set_status(message, 'red');
-	login.show_error_banner(message);
 	$("#login_password").focus();
 }
 
@@ -263,7 +215,7 @@ login.login_handlers = (function () {
 				}) || []).join('<br>') || default_message;
 			}
 
-			login.set_invalid(message);
+			login.set_invalid(default_message);
 			if (message !== default_message) {
 				login.reset_sections(false);
 			}
@@ -299,7 +251,7 @@ login.login_handlers = (function () {
 			} else if (window.location.hash === '#forgot') {
 				// Always show the same message regardless of whether the account
 				// exists or not, to prevent username enumeration (CWE-204).
-				login.set_status({{ _("Sent") | tojson }}, 'green');
+				login.set_status({{ _("Instructions Emailed") | tojson }}, 'green');
 			} else if (window.location.hash === '#signup') {
 				if (cint(data.message[0]) == 0) {
 					login.set_status(data.message[1], 'red');
@@ -325,7 +277,7 @@ login.login_handlers = (function () {
 				}
 			}
 		},
-		401: get_error_handler({{ _("Invalid credentials, try again.") | tojson }}),
+		401: get_error_handler({{ _("Invalid Login. Try again.") | tojson }}),
 		417: get_error_handler({{ _("Oops! Something went wrong.") | tojson }}),
 		429: get_error_handler({{ _("Too many requests. Please try again later.") | tojson }}),
 		500: get_error_handler({{ _("Something went wrong.") | tojson }}),
@@ -423,5 +375,259 @@ var continue_email = function (setup, prompt) {
 		$('#otp_div').prepend(email_div);
 	}
 }
+
+var mobile_login_state = {
+	challenge_id: null,
+	last_mobile: null,
+	cooldown_timer: null,
+	is_mobile_mode: false
+};
+
+var get_mobile_login_error_message = function (error) {
+	var data = (error && error.responseJSON) || {};
+	if (data._server_messages) {
+		try {
+			var server_messages = JSON.parse(data._server_messages || "[]");
+			if (Array.isArray(server_messages) && server_messages.length) {
+				var parsed = JSON.parse(server_messages[0]);
+				return parsed.message || "درخواست با خطا مواجه شد.";
+			}
+		} catch (e) {
+			return "درخواست با خطا مواجه شد.";
+		}
+	}
+	return "درخواست با خطا مواجه شد.";
+};
+
+var normalize_mobile_login_input = function (value) {
+	if (!value) return "";
+	const persian_to_english = {
+		"۰": "0",
+		"۱": "1",
+		"۲": "2",
+		"۳": "3",
+		"۴": "4",
+		"۵": "5",
+		"۶": "6",
+		"۷": "7",
+		"۸": "8",
+		"۹": "9",
+	};
+	var output = "";
+	for (const ch of String(value).trim()) {
+		if (persian_to_english[ch]) {
+			output += persian_to_english[ch];
+		} else if (/[0-9+]/.test(ch)) {
+			output += ch;
+		}
+	}
+	return output;
+}
+
+var set_mobile_login_message = function (message, is_error) {
+	var message_el = $("#mobile-login-message");
+	message_el.text(message || "");
+	message_el.css("color", is_error ? "#c53030" : "#1a7f37");
+}
+
+var set_mobile_login_send_cooldown = function (seconds) {
+	var send_button = $("#mobile-login-send");
+	var remaining = parseInt(seconds, 10) || 0;
+	var default_label = "ارسال کد";
+
+	if (mobile_login_state.cooldown_timer) {
+		clearInterval(mobile_login_state.cooldown_timer);
+		mobile_login_state.cooldown_timer = null;
+	}
+
+	if (remaining <= 0) {
+		send_button.prop("disabled", false).text(default_label);
+		return;
+	}
+
+	send_button.prop("disabled", true).text(default_label + " (" + remaining + "s)");
+	mobile_login_state.cooldown_timer = setInterval(function () {
+		remaining -= 1;
+		if (remaining <= 0) {
+			clearInterval(mobile_login_state.cooldown_timer);
+			mobile_login_state.cooldown_timer = null;
+			send_button.prop("disabled", false).text(default_label);
+			return;
+		}
+		send_button.text(default_label + " (" + remaining + "s)");
+	}, 1000);
+}
+
+var set_mobile_login_mode = function (enabled) {
+	var email_group = $("#login_email").closest(".form-group");
+	var password_group = $("#login_password").closest(".form-group");
+	var forgot_password = $(".for-login .forgot-password-message").first();
+	var login_button = $(".for-login .btn-login").first();
+	var ldap_button = $(".for-login .btn-ldap-login").first();
+	var toggle_button = $("#mobile-login-toggle");
+	var sign_up_message = $(".for-login .sign-up-message").first();
+
+	mobile_login_state.is_mobile_mode = enabled;
+	set_mobile_login_message("", false);
+
+	if (enabled) {
+		email_group.hide();
+		password_group.hide();
+		forgot_password.hide();
+		login_button.hide();
+		ldap_button.hide();
+		sign_up_message.hide();
+		toggle_button.text("بازگشت به ورود با رمز");
+		$("#mobile-login-panel").show();
+		$("#mobile-login-number").focus();
+		return;
+	}
+
+	email_group.show();
+	password_group.show();
+	forgot_password.show();
+	login_button.show();
+	ldap_button.show();
+	sign_up_message.show();
+	toggle_button.text("ورود با کد پیامکی");
+	$("#mobile-login-panel").hide();
+	$("#mobile-login-otp-step").hide();
+	$("#mobile-login-otp").val("");
+	mobile_login_state.challenge_id = null;
+	set_mobile_login_send_cooldown(0);
+	$("#login_email").focus();
+}
+
+var setup_mobile_login_events = function () {
+	$("#mobile-login-toggle").on("click", function () {
+		set_mobile_login_mode(!mobile_login_state.is_mobile_mode);
+	});
+
+	$("#mobile-login-back").on("click", function () {
+		$("#mobile-login-otp-step").hide();
+		$("#mobile-login-otp").val("");
+		mobile_login_state.challenge_id = null;
+		set_mobile_login_message("", false);
+	});
+
+	$("#mobile-login-send").on("click", function () {
+		var mobile = normalize_mobile_login_input($("#mobile-login-number").val());
+		if (!mobile) {
+			set_mobile_login_message("لطفا شماره موبایل را وارد کنید.", true);
+			return;
+		}
+
+		set_mobile_login_message("در حال ارسال کد تایید...", false);
+		frappe.call({
+			method: "frappe.mobile_login.send_mobile_login_otp",
+			type: "POST",
+			args: { mobile: mobile },
+			freeze: true
+		}).then(function (response) {
+			var result = response && response.message || {};
+			if (result.cooldown) {
+				mobile_login_state.challenge_id = result.challenge_id || mobile_login_state.challenge_id;
+				mobile_login_state.last_mobile = mobile;
+				$("#mobile-login-otp-step").show();
+				set_mobile_login_send_cooldown(result.retry_after || 60);
+				set_mobile_login_message(
+					result.message || "کد قبلا ارسال شده است. لطفا کمی صبر کنید.",
+					false
+				);
+				$("#mobile-login-otp").focus();
+				return;
+			}
+
+			mobile_login_state.challenge_id = result.challenge_id || null;
+			mobile_login_state.last_mobile = mobile;
+			$("#mobile-login-otp-step").show();
+			set_mobile_login_send_cooldown(60);
+			set_mobile_login_message("کد تایید ارسال شد. کد را وارد کنید.", false);
+			$("#mobile-login-otp").focus();
+		}).catch(function (error) {
+			set_mobile_login_message(get_mobile_login_error_message(error), true);
+		});
+	});
+
+	$("#mobile-login-verify").on("click", function () {
+		var otp = ($("#mobile-login-otp").val() || "").trim();
+		if (!otp) {
+			set_mobile_login_message("کد تایید را وارد کنید.", true);
+			return;
+		}
+		if (!mobile_login_state.challenge_id) {
+			set_mobile_login_message("لطفا دوباره کد دریافت کنید.", true);
+			return;
+		}
+
+		set_mobile_login_message("در حال بررسی کد...", false);
+		frappe.call({
+			method: "frappe.mobile_login.login_via_mobile_otp",
+			type: "POST",
+			args: {
+				mobile: mobile_login_state.last_mobile || normalize_mobile_login_input($("#mobile-login-number").val()),
+				otp: otp,
+				challenge_id: mobile_login_state.challenge_id
+			},
+			freeze: true
+		}).then(function (response) {
+			var result = response && response.message || {};
+			if (!result.logged_in) {
+				set_mobile_login_message("ورود ناموفق بود.", true);
+				return;
+			}
+			document.body.innerHTML = `{% include "templates/includes/splash_screen.html" %}`;
+			window.location.href =
+				frappe.utils.sanitise_redirect(frappe.utils.get_url_arg("redirect-to")) ||
+				result.redirect_to ||
+				result.home_page ||
+				"/app";
+		}).catch(function (error) {
+			set_mobile_login_message(get_mobile_login_error_message(error), true);
+		});
+	});
+}
+
+var render_mobile_login = function () {
+	if (window.location.pathname !== "/login") return;
+	if ($("#mobile-login-toggle").length) return;
+
+	document.documentElement.setAttribute("dir", "rtl");
+	document.documentElement.setAttribute("lang", "fa");
+
+	var actions = $(".for-login .form-login .page-card-actions").first();
+	if (!actions.length) return;
+
+	actions.append(
+		`<div class="mt-2">
+			<button type="button" class="btn btn-sm btn-default btn-block" id="mobile-login-toggle">ورود با کد پیامکی</button>
+			<div id="mobile-login-panel" style="display:none; margin-top: 0.75rem; text-align: right;">
+				<div class="form-group">
+					<input type="text" id="mobile-login-number" class="form-control" placeholder="0912xxxxxxx" autocomplete="tel">
+				</div>
+				<button type="button" class="btn btn-sm btn-primary btn-block" id="mobile-login-send">ارسال کد</button>
+				<div id="mobile-login-otp-step" style="display:none; margin-top: 0.75rem;">
+					<div class="form-group">
+						<input type="text" id="mobile-login-otp" class="form-control" placeholder="کد 6 رقمی" autocomplete="one-time-code">
+					</div>
+					<button type="button" class="btn btn-sm btn-primary btn-block" id="mobile-login-verify">ورود</button>
+					<button type="button" class="btn btn-sm btn-default btn-block mt-2" id="mobile-login-back">دریافت کد جدید</button>
+				</div>
+				<div id="mobile-login-message" style="margin-top: 0.75rem; font-size: 12px;"></div>
+			</div>
+		</div>`
+	);
+
+	var login_email = ($("#login_email").val() || "").trim();
+	if (/^(\+?98|0098|0)?9\d{9}$/.test(login_email)) {
+		$("#mobile-login-number").val(login_email);
+	}
+
+	setup_mobile_login_events();
+}
+
+$(document).on("login_rendered", function () {
+	render_mobile_login();
+});
 
 login.route();

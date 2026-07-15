@@ -308,7 +308,7 @@ def send_token_via_sms(otpsecret, token=None, phone_no=None):
 		return frappe.get_attr(send_token_hook_methods[-1])(otpsecret, token, phone_no)
 
 	try:
-		from frappe.core.doctype.sms_settings.sms_settings import send_request
+		from frappe.core.doctype.sms_settings.sms_settings import get_headers, send_request
 	except Exception:
 		return False
 
@@ -320,8 +320,56 @@ def send_token_via_sms(otpsecret, token=None, phone_no=None):
 		return False
 
 	hotp = pyotp.HOTP(otpsecret)
-	otp = hotp.at(int(token))
-	args = {ss.message_parameter: get_rendered_otp_message(otp)}
+	otp_code = hotp.at(int(token))
+	otp_message = get_rendered_otp_message(otp_code)
+	gateway_url = (ss.sms_gateway_url or "").strip().lower()
+
+	# sms.ir verify endpoint requires JSON payload and template metadata.
+	if gateway_url.endswith("/v1/send/verify"):
+		template_id = None
+		parameter_name = "Code"
+		for d in ss.get("parameters"):
+			key = (d.parameter or "").strip().lower()
+			if d.header or not key:
+				continue
+			if key in {"templateid", "template_id"}:
+				template_id = cint(d.value)
+			elif key in {"parametername", "parameter_name", "otp_parameter_name"} and d.value:
+				parameter_name = d.value
+
+		if not template_id:
+			frappe.log_error(
+				"SMS Settings requires a non-zero 'templateId' parameter for /v1/send/verify.",
+				"2FA SMS Template Missing",
+			)
+			return False
+
+		headers = get_headers(ss)
+		headers.setdefault("Content-Type", "application/json")
+		sms_args = {
+			"params": {
+				"mobile": phone_no,
+				"templateId": template_id,
+				"parameters": [{"name": parameter_name, "value": otp_code}],
+			},
+			"gateway_url": ss.sms_gateway_url,
+			"headers": headers,
+			"use_post": True,
+			"use_json": True,
+		}
+		enqueue(
+			method=send_request,
+			queue="short",
+			timeout=300,
+			event=None,
+			is_async=True,
+			job_name=None,
+			now=False,
+			**sms_args,
+		)
+		return True
+
+	args = {ss.message_parameter: otp_message}
 
 	for d in ss.get("parameters"):
 		args[d.parameter] = d.value

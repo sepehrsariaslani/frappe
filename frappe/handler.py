@@ -105,8 +105,17 @@ def is_valid_http_method(method):
 		return
 
 	http_method = frappe.local.request.method
+	allowed_methods = frappe.allowed_http_methods_for_whitelisted_func.get(method)
+	if not allowed_methods:
+		method_module = getattr(method, "__module__", None)
+		method_name = getattr(method, "__name__", None)
+		if method_module and method_name:
+			for fn, methods in frappe.allowed_http_methods_for_whitelisted_func.items():
+				if getattr(fn, "__module__", None) == method_module and getattr(fn, "__name__", None) == method_name:
+					allowed_methods = methods
+					break
 
-	if http_method not in frappe.allowed_http_methods_for_whitelisted_func[method]:
+	if not allowed_methods or http_method not in allowed_methods:
 		frappe.throw_permission_error()
 
 

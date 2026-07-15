@@ -33,6 +33,28 @@ from frappe.website.serve import get_response
 
 _site = None
 _sites_path = os.environ.get("SITES_PATH", ".")
+_statics_applied = False
+
+
+def _resolve_assets_path() -> str:
+	"""Resolve correct assets directory for both `bench start` and gunicorn/supervisor.
+
+	Under supervisor, web process can run with cwd=`sites` and/or SITES_PATH pointing to `sites`,
+	while assets are stored at `<bench>/sites/assets`.
+	"""
+	candidate_paths = [
+		os.path.join(_sites_path, "assets"),
+		os.path.join(os.path.dirname(_sites_path), "sites", "assets"),
+		os.path.join(os.path.abspath(os.getcwd()), "assets"),
+	]
+
+	for path in candidate_paths:
+		absolute = os.path.abspath(path)
+		if os.path.isdir(absolute):
+			return absolute
+
+	# fallback to current behavior
+	return os.path.abspath(os.path.join(_sites_path, "assets"))
 
 
 # If gc.freeze is done then importing modules before forking allows us to share the memory
@@ -530,10 +552,20 @@ def serve(
 
 
 def application_with_statics():
-	global application, _sites_path
+	global application, _sites_path, _statics_applied
 
-	application = SharedDataMiddleware(application, {"/assets": str(os.path.join(_sites_path, "assets"))})
+	if _statics_applied:
+		return application
+
+	application = SharedDataMiddleware(application, {"/assets": _resolve_assets_path()})
 
 	application = StaticDataMiddleware(application, {"/files": str(os.path.abspath(_sites_path))})
+	_statics_applied = True
 
 	return application
+
+
+# gunicorn مسیر `frappe.app:application` را مستقیم لود می‌کند و `serve()` اجرا نمی‌شود.
+# برای اجرای مستقیم روی پورت 8000 (بدون nginx)، استاتیک‌ها را همینجا وصل می‌کنیم.
+if not os.environ.get("NO_STATICS"):
+	application = application_with_statics()

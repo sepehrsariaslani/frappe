@@ -49,6 +49,7 @@ class Workspace(DeskViews):
 		self.allowed_reports = DeskViews.get_allowed_reports(cache=True)
 
 		if not minimal:
+			self.onboarding_list = []
 			if self.doc.content:
 				self.onboarding_list = [
 					x["data"]["onboarding_name"] for x in loads(self.doc.content) if x["type"] == "onboarding"

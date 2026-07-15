@@ -117,6 +117,15 @@ def include_icons(path, preload=True):
 	assets."""
 	path = bundled_asset(path)
 
+	if path == "/files/frappe_system_theme.css":
+		import os
+		import frappe
+
+		theme_css_path = frappe.get_site_path("public", "files", "frappe_system_theme.css")
+		if os.path.exists(theme_css_path):
+			version = int(os.path.getmtime(theme_css_path))
+			path = f"{path}?v={version}"
+
 	if preload:
 		import frappe
 
@@ -149,10 +158,12 @@ def bundled_asset(path, rtl=None):
 	from frappe.website.utils import abs_url
 
 	if ".bundle." in path and not path.startswith("/assets"):
-		bundled_assets = get_assets_json()
-		if path.endswith(".css") and is_rtl(rtl):
-			path = f"rtl_{path}"
-		path = bundled_assets.get(path) or path
+		# During partial restores/migrations assets.json can be missing; avoid 500 on template render.
+		bundled_assets = get_assets_json() or {}
+		asset_key = path.lstrip("/")
+		if asset_key.endswith(".css") and is_rtl(rtl):
+			asset_key = f"rtl_{asset_key}"
+		path = bundled_assets.get(asset_key) or bundled_assets.get(path) or path
 
 	return abs_url(path)
 
@@ -163,3 +174,56 @@ def is_rtl(rtl=None):
 	if rtl is None:
 		return local.lang in ["ar", "he", "fa", "ps"]
 	return rtl
+
+
+def get_qr_code(data: str, color: str = "#000000") -> str:
+	from base64 import b64decode
+	from urllib.parse import quote
+
+	import frappe
+	from frappe.twofactor import get_qr_svg_code
+
+	if not data:
+		return ""
+
+	qr_target = data.strip()
+	if qr_target.startswith("/"):
+		qr_target = frappe.utils.get_url(qr_target)
+
+	try:
+		import pyqrcode
+
+		png_b64 = pyqrcode.create(qr_target, error="M").png_as_base64_str(
+			scale=4,
+			module_color=color or "#000000",
+			background="#ffffff",
+			quiet_zone=2,
+		)
+		return (
+			f'<img src="data:image/png;base64,{png_b64}" '
+			'width="56" height="56" '
+			'style="display:block !important;width:56px !important;height:56px !important;min-width:56px !important;min-height:56px !important;max-width:56px !important;max-height:56px !important;" '
+			'alt="QR Code">'
+		)
+	except Exception:
+		pass
+
+	qr_svg_b64 = get_qr_svg_code(qr_target)
+	if not qr_svg_b64:
+		return ""
+
+	qr_svg = b64decode(qr_svg_b64).decode()
+	qr_svg = qr_svg.replace('<?xml version="1.0" encoding="UTF-8"?>', "").strip()
+	if color and color != "#222":
+		qr_svg = qr_svg.replace("#222", color)
+
+	if "preserveAspectRatio=" not in qr_svg and "<svg " in qr_svg:
+		qr_svg = qr_svg.replace("<svg ", '<svg preserveAspectRatio="xMidYMid meet" ', 1)
+
+	svg_uri = quote(qr_svg, safe="/:;,+#()=-_.!~*' ")
+	return (
+		f'<img src="data:image/svg+xml;utf8,{svg_uri}" '
+		'width="56" height="56" '
+		'style="display:block !important;width:56px !important;height:56px !important;min-width:56px !important;min-height:56px !important;max-width:56px !important;max-height:56px !important;" '
+		'alt="QR Code">'
+	)

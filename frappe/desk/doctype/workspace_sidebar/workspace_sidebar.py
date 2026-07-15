@@ -73,6 +73,33 @@ class WorkspaceSidebar(Document, DeskViews):
 			delete_file(self.app, old)
 			self.export_sidebar()
 
+	def is_item_allowed(self, name, item_type, allowed_workspaces):
+		if frappe.session.user == "Administrator":
+			return True
+
+		item_type = item_type.lower()
+
+		if item_type == "doctype":
+			if not name or not frappe.db.exists("DocType", name):
+				return False
+			return (
+				name in (self.can_read or [])
+				and name in (self.restricted_doctypes or [])
+				and frappe.has_permission(name)
+			)
+		if item_type == "page":
+			return name in self.allowed_pages and name in self.restricted_pages
+		if item_type == "report":
+			return name in self.allowed_reports
+		if item_type == "help":
+			return True
+		if item_type == "dashboard":
+			return True
+		if item_type == "url":
+			return True
+		if item_type == "workspace":
+			return name in allowed_workspaces
+
 	def get_cached(self, cache_key, fallback_fn):
 		value = frappe.cache.get_value(cache_key, user=frappe.session.user)
 		if value is not None:
@@ -341,3 +368,63 @@ def add_section_breaks(label, idx):
 	section_break = frappe.new_doc("Workspace Sidebar Item")
 	section_break.update({"label": label, "type": "Section Break", "idx": idx})
 	return section_break
+
+
+def sync_system_tools_sidebar():
+	"""Keep core tool links under their intended system sidebars."""
+	sidebar_name = "Workspace Sidebar"
+	if not frappe.db.table_exists("Workspace Sidebar") or not frappe.db.table_exists("Workspace Sidebar Item"):
+		return
+
+	if not frappe.db.exists(sidebar_name, "Tools") or not frappe.db.exists(sidebar_name, "Automation"):
+		return
+
+	desired_parent_by_doctype = {
+		"Assignment Rule": "Automation",
+		"ToDo": "Tools",
+		"File": "Tools",
+	}
+	changed = False
+
+	for doctype_name, desired_parent in desired_parent_by_doctype.items():
+		if not frappe.db.exists("DocType", doctype_name):
+			continue
+
+		existing_rows = frappe.get_all(
+			"Workspace Sidebar Item",
+			filters={"link_type": "DocType", "link_to": doctype_name},
+			fields=["name", "parent", "label"],
+			order_by="idx asc, creation asc",
+		)
+
+		# Keep only one entry in the desired parent, remove duplicates from elsewhere.
+		kept = False
+		for row in existing_rows:
+			if row.parent == desired_parent and not kept:
+				kept = True
+				continue
+			frappe.delete_doc(
+				"Workspace Sidebar Item",
+				row.name,
+				ignore_permissions=True,
+				force=True,
+				delete_permanently=True,
+			)
+			changed = True
+
+		if not kept:
+			target = frappe.get_doc(sidebar_name, desired_parent)
+			target.append(
+				"items",
+				{
+					"type": "Link",
+					"link_type": "DocType",
+					"link_to": doctype_name,
+					"label": doctype_name,
+				},
+			)
+			target.save(ignore_permissions=True)
+			changed = True
+
+	if changed:
+		frappe.clear_cache()

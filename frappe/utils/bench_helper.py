@@ -60,6 +60,7 @@ def FrappeClickWrapper(cls, handler):
 @dataclass
 class CliCtxObj:
 	sites: list[str]
+	site_arg: str | None
 	force: bool
 	profile: bool
 	verbose: bool
@@ -104,7 +105,9 @@ def get_app_group(app: str) -> click.Group:
 @click.option("--force", is_flag=True, default=False, help="Force")
 @click.pass_context
 def app_group(ctx, site=False, force=False, verbose=False, profile=False):
-	ctx.obj = CliCtxObj(sites=get_sites(site), force=force, verbose=verbose, profile=profile)
+	ctx.obj = CliCtxObj(
+		sites=get_sites(site), site_arg=site, force=force, verbose=verbose, profile=profile
+	)
 	if ctx.info_name == "frappe":
 		ctx.info_name = ""
 

@@ -56,7 +56,7 @@ def get_permission_query_conditions(user):
 
 
 def has_permission(doc, ptype, user):
-	if doc.private == 0 or user == "Administrator":
+	if doc.get("private", 0) == 0 or user == "Administrator":
 		return True
 
 	if user == doc.owner:

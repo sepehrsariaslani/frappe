@@ -286,36 +286,14 @@ frappe.ui.GroupBy = class {
 	set_args(args) {
 		if (this.aggregate_function && this.group_by) {
 			this.report_view.group_by = this.group_by;
-			this.report_view.sort_by = "_aggregate_column";
-			this.report_view.sort_order = "desc";
 
-			// save original fields
-			if (!this.report_view.fields.map((f) => f[0]).includes("_aggregate_column")) {
-				this.original_fields = this.report_view.fields.map((f) => f);
-			}
-
-			this.report_view.fields = [[this.group_by_field, this.group_by_doctype]];
-
-			// rebuild fields for group by
-			args.fields = this.report_view.get_fields();
-
-			// add aggregate column in both query args and report views
-			this.report_view.fields.push([
-				"_aggregate_column",
-				this.aggregate_on_doctype || this.doctype,
-			]);
-
-			// setup columns in datatable
-			this.report_view.setup_columns();
-
-			Object.assign(args, {
-				with_comment_count: false,
-				aggregate_on_field: this.aggregate_on_field || "name",
-				aggregate_on_doctype: this.aggregate_on_doctype || this.doctype,
-				aggregate_function: this.aggregate_function || "count",
-				group_by: this.report_view.group_by || null,
-				order_by: "_aggregate_column desc",
-			});
+			// Client-side grouped mode:
+			// keep original rows and columns, then render collapsible group headers in report view.
+			// force-disable backend SQL grouping.
+			args.group_by = null;
+			delete args.aggregate_on_field;
+			delete args.aggregate_on_doctype;
+			delete args.aggregate_function;
 		}
 	}
 
