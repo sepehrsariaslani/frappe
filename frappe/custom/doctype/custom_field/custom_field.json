@@ -41,7 +41,6 @@
   "unique",
   "is_virtual",
   "read_only",
-  "mask",
   "ignore_user_permissions",
   "hidden",
   "print_hide",
@@ -49,7 +48,6 @@
   "print_width",
   "alignment",
   "no_copy",
-  "set_only_once",
   "allow_on_submit",
   "in_list_view",
   "in_standard_filter",
@@ -464,9 +462,9 @@
    "label": "Sort Options"
   },
   {
-   "depends_on": "eval:doc.fieldtype===\"Link\"",
    "fieldname": "link_filters",
    "fieldtype": "JSON",
+   "hidden": 1,
    "label": "Link Filters"
   },
   {
@@ -486,19 +484,6 @@
    "fieldtype": "Select",
    "label": "Button Color",
    "options": "\nDefault\nPrimary\nInfo\nSuccess\nWarning\nDanger"
-  },
-  {
-   "default": "0",
-   "fieldname": "set_only_once",
-   "fieldtype": "Check",
-   "label": "Set only once"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:[\"Select\", \"Read Only\", \"Phone\", \"Percent\", \"Password\", \"Link\", \"Int\", \"Float\", \"Dynamic Link\", \"Duration\", \"Datetime\", \"Currency\", \"Data\", \"Date\"].includes(doc.fieldtype)",
-   "fieldname": "mask",
-   "fieldtype": "Check",
-   "label": "Mask"
   }
  ],
  "grid_page_length": 50,
@@ -506,7 +491,7 @@
  "idx": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-08 13:37:37.503488",
+ "modified": "2025-11-12 01:14:24.753774",
  "modified_by": "Administrator",
  "module": "Custom",
  "name": "Custom Field",

@@ -72,7 +72,7 @@
 	}
 
 	.body-sidebar-bottom {
-		padding: 0px;
+		padding: 7px;
 		width: 100%;
 	}
 
@@ -116,8 +116,8 @@
 			align-items: center;
 			// padding: 3px 0px 3px 11px;
 			flex: 1;
-			height: 28px;
-			color: var(--ink-gray-6);
+			height: 30px;
+			color: var(--ink-gray-8);
 			text-decoration: none;
 			@include transition(all, 0.3s, cubic-bezier(0.4, 0, 0.2, 1));
 			.sidebar-item-icon {
@@ -153,13 +153,12 @@
 	}
 
 	.nav-item {
-		padding: 4px 0px;
+		margin-left: -5px;
 	}
-
 	.standard-items-sections {
 		.dropdown-notifications {
 			.notifications-list {
-				left: 100%;
+				left: 3.4%;
 			}
 		}
 	}
@@ -170,25 +169,14 @@
 		// make it an overlay on hover
 		position: absolute;
 		width: var(--sidebar-width);
-
-		.collapse-sidebar-link {
-			text-decoration: none;
-			font-size: var(--text-sm);
-			display: flex;
-			align-items: center;
-			svg {
-				margin: 0px;
-				flex: 0 0 auto;
+		.dropdown-notifications {
+			.notifications-list {
+				left: 100%;
 			}
-			span {
-				margin-left: 10px;
-				@include truncate();
-			}
-			@include transition(all, 0.3s, cubic-bezier(0.4, 0, 0.2, 1));
 		}
 
 		.nav-item {
-			padding: 4px 8px;
+			margin-left: -5px;
 		}
 
 		.dropdown-navbar-user {
@@ -197,6 +185,7 @@
 			}
 
 			.sidebar-user-button {
+				padding: var(--padding-sm);
 				border-radius: var(--border-radius-sm);
 			}
 		}
@@ -281,41 +270,6 @@
 	display: none;
 }
 
-.body-sidebar .sidebar-toggle-btn {
-	position: absolute;
-	right: -12px;
-	bottom: 80px;
-	width: 24px;
-	height: 24px;
-	border-radius: 50%;
-	border: 1px solid var(--sidebar-border-color);
-	background: var(--surface-menu-bar);
-	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	padding: 0;
-	opacity: 0;
-	visibility: hidden;
-	transition: opacity 0.15s ease, visibility 0.15s ease;
-	z-index: 1023;
-
-	svg {
-		width: 12px;
-		height: 12px;
-	}
-
-	&:hover {
-		background: var(--sidebar-hover-color);
-	}
-}
-
-.body-sidebar:hover .sidebar-toggle-btn {
-	opacity: 1;
-	visibility: visible;
-}
-
 .sidebar-resize-handle {
 	position: absolute;
 	top: 0;
@@ -394,7 +348,6 @@
 }
 .sidebar-item-suffix {
 	margin-left: auto;
-	padding: 7px;
 	.keyboard-shortcut {
 		color: var(--ink-gray-4, #999999);
 		font-size: var(--text-sm);

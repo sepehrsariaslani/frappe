@@ -199,8 +199,8 @@ def remove_orphan_doctypes():
 	print()
 
 
-def remove_orphan_entities(entity_types=None):
-	entities = ["Workspace", "Dashboard", "Page", "Report", "Notification"]
+def remove_orphan_entities():
+	entites = ["Workspace", "Dashboard", "Page", "Report", "Notification"]
 	app_level_entities = ["Workspace Sidebar", "Desktop Icon"]
 	entity_filter_map = {
 		"Workspace": [{"public": 1, "module": ["is", "set"], "app": ["is", "set"]}],
@@ -211,14 +211,9 @@ def remove_orphan_entities(entity_types=None):
 		"Desktop Icon": {"standard": True},
 		"Notification": {"is_standard": True},
 	}
-	entity_file_map = create_entity_file_map(entities)
-	if entity_types:
-		if isinstance(entity_types, list):
-			entities = entity_types
-		else:
-			entities = [entity_types]
+	entity_file_map = create_entity_file_map(entites)
 
-	for entity in entities:
+	for entity in entites:
 		print(f"Removing orphan {entity}s")
 		all_enitities = frappe.get_all(
 			entity, filters=entity_filter_map.get(entity), fields=["name", "module"]
@@ -239,8 +234,6 @@ def remove_orphan_entities(entity_types=None):
 		# save the deleted icons
 		frappe.db.commit()  # nosemgrep
 	#  Remove app level entities
-	if entity_types and not set(entity_types).issubset(set(app_level_entities)):
-		return
 	for app_entity in app_level_entities:
 		print(f"Removing orphan {app_entity}s")
 		all_enitities = frappe.get_all(

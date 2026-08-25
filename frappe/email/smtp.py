@@ -93,8 +93,7 @@ class SMTPServer:
 					frappe.msgprint(res[1], raise_exception=frappe.OutgoingEmailError)
 
 			# Re-issue EHLO after AUTH to refresh server capabilities
-			if not frappe.conf.smtp_no_ehlo_after_auth:
-				_session.ehlo()
+			_session.ehlo()
 
 			self._session = _session
 			self._enqueue_connection_closure()

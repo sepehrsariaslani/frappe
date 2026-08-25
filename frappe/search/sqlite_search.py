@@ -841,9 +841,8 @@ class SQLiteSearch(ABC):
 
 	def _set_pragmas(self, cursor, is_read=False):
 		"""Set SQLite performance pragmas."""
-		if not is_read:
-			cursor.execute("PRAGMA journal_mode = WAL;")  # Write-Ahead Logging for concurrency
-			cursor.execute("PRAGMA synchronous = NORMAL;")  # Better performance vs FULL
+		cursor.execute("PRAGMA journal_mode = WAL;")  # Write-Ahead Logging for concurrency
+		cursor.execute("PRAGMA synchronous = NORMAL;")  # Better performance vs FULL
 		cursor.execute("PRAGMA cache_size = -8192;")  # 8MB cache
 		cursor.execute("PRAGMA temp_store = MEMORY;")  # Memory temp storage
 		if is_read:
@@ -2630,9 +2629,8 @@ class SQLiteSearch(ABC):
 
 	def _set_pragmas(self, cursor, is_read=False):
 		"""Set SQLite performance pragmas."""
-		if not is_read:
-			cursor.execute("PRAGMA journal_mode = WAL;")  # Write-Ahead Logging for concurrency
-			cursor.execute("PRAGMA synchronous = NORMAL;")  # Better performance vs FULL
+		cursor.execute("PRAGMA journal_mode = WAL;")  # Write-Ahead Logging for concurrency
+		cursor.execute("PRAGMA synchronous = NORMAL;")  # Better performance vs FULL
 		cursor.execute("PRAGMA cache_size = -8192;")  # 8MB cache
 		cursor.execute("PRAGMA temp_store = MEMORY;")  # Memory temp storage
 		if is_read:

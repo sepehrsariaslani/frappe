@@ -467,7 +467,6 @@ class Email:
 	def set_from(self):
 		# gmail mailing-list compatibility
 		# use X-Original-Sender if available, as gmail sometimes modifies the 'From'
-		self.from_real_name = None
 		_from_email = self.decode_email(self.mail.get("X-Original-From") or self.mail["From"])
 		_reply_to = self.decode_email(self.mail.get("Reply-To"))
 
@@ -494,8 +493,6 @@ class Email:
 	def decode_email(email: bytes | str | None) -> str | None:
 		if not email:
 			return
-
-		raw_email = email if isinstance(email, str) else email.decode("utf-8", "replace")
 		email = frappe.as_unicode(email)
 		try:
 			parts = decode_header(email)
@@ -510,20 +507,6 @@ class Email:
 				decoded += part.decode(encoding, "replace")
 			else:
 				decoded += safe_decode(part)
-
-		# Reject malformed address headers where decoding synthesizes a bare addr-spec.
-		# Allow valid encoded display-name forms like "=?utf-8?...?= <user@example.com>".
-		if decoded and "@" in decoded and "@" not in raw_email:
-			decoded_addr_spec = parse_addr(decoded)[1]
-			if decoded_addr_spec and decoded.strip() == decoded_addr_spec:
-				frappe.log_error(
-					title=_("Malformed Address Header"),
-					message=_("Rejected malformed encoded address header with synthesized '@': {0}").format(
-						repr(raw_email)
-					),
-				)
-				return None
-
 		return decoded
 
 	def set_content_and_type(self):
@@ -598,8 +581,7 @@ class Email:
 		if not fcontent:
 			return
 
-		email_account = getattr(self, "email_account", None)
-		attachment_limit = cint(email_account.attachment_limit) if email_account else 0
+		attachment_limit = cint(self.email_account.attachment_limit)
 		if attachment_limit and len(fcontent) > attachment_limit * 1024 * 1024:
 			return  # skip attachments that are larger than the specified limit
 
@@ -894,10 +876,6 @@ class InboundMail(Email):
 		record = self.get_doc(doctype, name, ignore_error=True) if name else None
 
 		if not record:
-			# Subject matching is only possible if the doctype declares a subject_field.
-			if not email_fields.subject_field:
-				return None
-
 			subject = self.clean_subject(self.subject)
 			filters = {
 				email_fields.subject_field: ("like", f"%{subject}%"),
@@ -905,7 +883,7 @@ class InboundMail(Email):
 			}
 
 			# Sender check is not needed incase mail is from system user.
-			if email_fields.sender_field and not (len(subject) > 10 and is_system_user(self.from_email)):
+			if not (len(subject) > 10 and is_system_user(self.from_email)):
 				filters[email_fields.sender_field] = self.from_email
 
 			name = frappe.db.get_value(self.email_account.append_to, filters=filters)

@@ -55,7 +55,7 @@ from .utils.jinja import (
 	render_template,
 )
 
-__version__ = "16.27.0"
+__version__ = "16.16.0"
 __title__ = "Frappe Framework"
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -141,23 +141,9 @@ if TYPE_CHECKING:  # pragma: no cover
 	lang: str
 
 
-def init(
-	site: str,
-	sites_path: str = ".",
-	new_site: bool = False,
-	force: bool = False,
-	*,
-	is_request=False,
-	is_job=False,
-) -> None:
+def init(site: str, sites_path: str = ".", new_site: bool = False, force: bool = False) -> None:
 	"""Initialize frappe for the current site. Reset thread locals `frappe.local`"""
-	# Reset locals at start of the request.
-	# Previous request can fail in ways we might have no control over.
-	# release_local is inexpensive, so trigger it before every request/job.
-	if force:
-		release_local(local)
-
-	if getattr(local, "initialised", None):
+	if getattr(local, "initialised", None) and not force:
 		return
 
 	if site and not SITE_NAME_PATTERN.match(site):
@@ -197,7 +183,7 @@ def init(
 	local.response_headers = Headers()
 	local.task_id = None
 
-	local.conf = get_site_config(sites_path=sites_path, site_path=site_path, cached=is_request)
+	local.conf = get_site_config(sites_path=sites_path, site_path=site_path, cached=bool(frappe.request))
 	local.lang = local.conf.lang or "en"
 
 	local.module_app = None
@@ -210,8 +196,7 @@ def init(
 	local.new_doc_templates = {}
 
 	local.request_cache = defaultdict(dict)
-	local.jenv_restricted = None
-	local.jenv_unrestricted = None
+	local.jenv = None
 	local.jloader = None
 	local.cache = {}
 	local.form_dict = _dict()
@@ -222,7 +207,7 @@ def init(
 	if not cache or not client_cache:
 		setup_redis_cache_connection()
 
-	setup_module_map(include_all_apps=not (is_request or is_job or frappe.flags.in_migrate))
+	setup_module_map(include_all_apps=not (frappe.request or frappe.job or frappe.flags.in_migrate))
 
 	local.initialised = True
 
@@ -329,11 +314,10 @@ class init_site:
 
 def destroy():
 	"""Closes connection and releases werkzeug local."""
-	try:
-		if db:
-			db.close()
-	finally:
-		release_local(local)
+	if db:
+		db.close()
+
+	release_local(local)
 
 
 _redis_init_lock = threading.Lock()
@@ -387,8 +371,7 @@ def set_user(username: str):
 	local.session.sid = username
 	local.cache = {}
 	local.form_dict = _dict()
-	local.jenv_restricted = None
-	local.jenv_unrestricted = None
+	local.jenv = None
 	local.session.data = _dict()
 	local.role_permissions = {}
 	local.new_doc_templates = {}
@@ -479,24 +462,14 @@ def whitelist(allow_guest=False, xss_safe=False, methods=None):
 def is_whitelisted(method):
 	from frappe.utils import sanitize_html
 
-	resolved_method = method
-	if method not in whitelisted:
-		method_module = getattr(method, "__module__", None)
-		method_name = getattr(method, "__name__", None)
-		if method_module and method_name:
-			for fn in whitelisted:
-				if getattr(fn, "__module__", None) == method_module and getattr(fn, "__name__", None) == method_name:
-					resolved_method = fn
-					break
-
 	is_guest = session["user"] == "Guest"
-	if resolved_method not in whitelisted or (is_guest and resolved_method not in guest_methods):
+	if method not in whitelisted or (is_guest and method not in guest_methods):
 		summary = _("You are not permitted to access this resource. Login to access")
 		detail = _("Function {0} is not whitelisted.").format(bold(f"{method.__module__}.{method.__name__}"))
 		msg = f"<details><summary>{summary}</summary>{detail}</details>"
 		throw(msg, PermissionError, title=_("Method Not Allowed"))
 
-	if is_guest and resolved_method not in xss_safe_methods:
+	if is_guest and method not in xss_safe_methods:
 		# strictly sanitize form_dict
 		# escapes html characters like <> except for predefined tags like a, b, ul etc.
 		for key, value in form_dict.items():
@@ -531,7 +504,6 @@ def read_only():
 def write_only():
 	# if replica connection exists, we have to replace it momentarily with the primary connection
 	def innfn(fn):
-		@functools.wraps(fn)
 		def wrapper_fn(*args, **kwargs):
 			primary_db = getattr(local, "primary_db", None)
 			replica_db = getattr(local, "replica_db", None)
@@ -1620,7 +1592,6 @@ from frappe.utils.error import log_error
 from frappe.utils.formatters import format_value
 from frappe.utils.print_utils import get_print, attach_print
 from frappe.email import sendmail
-from frappe.concurrency_limiter import concurrent_limit
 
 # for backwards compatibility
 format = format_value

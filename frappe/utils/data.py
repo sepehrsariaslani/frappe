@@ -1303,12 +1303,8 @@ def _round_away_from_zero(num, precision):
 
 
 def _bankers_rounding(num, precision):
-	if num == 0:
-		return 0.0
-
-	sign = -1 if num < 0 else 1
 	multiplier = 10**precision
-	num = round(abs(num) * multiplier, 12)
+	num = round(num * multiplier, 12)
 
 	if num == 0:
 		return 0.0
@@ -1316,13 +1312,13 @@ def _bankers_rounding(num, precision):
 	floor_num = math.floor(num)
 	decimal_part = num - floor_num
 
-	epsilon = 2.0 ** (math.log(num, 2) - 52.0)
+	epsilon = 2.0 ** (math.log(abs(num), 2) - 52.0)
 	if abs(decimal_part - 0.5) < epsilon:
 		num = floor_num if (floor_num % 2 == 0) else floor_num + 1
 	else:
 		num = round(num)
 
-	return sign * num / multiplier
+	return num / multiplier
 
 
 def remainder(numerator: NumericType, denominator: NumericType, precision: int = 2) -> NumericType:
@@ -1933,10 +1929,11 @@ def get_link_to_form(doctype: str, name: str | None = None, label: str | None = 
 
 
 def get_url_to_workspace(workspace: str, is_public: bool):
-	from frappe.desk.utils import slug
-
-	url_prefix = "/desk/" if is_public else "/desk/private/"
-	return url_prefix + slug(workspace)
+	url_prefix = "/desk/"
+	if not is_public:
+		workspace_url = "/desk/private/"
+	workspace_url = url_prefix + workspace.lower()
+	return workspace_url
 
 
 def get_link_to_report(

@@ -18,6 +18,4 @@ def get_context(context):
 	except frappe.DoesNotExistError:
 		frappe.clear_last_message()
 		context.desktop_layout = {}
-
-	context.show_search_bar = frappe.get_cached_value("User", frappe.session.user, "search_bar")
 	return context

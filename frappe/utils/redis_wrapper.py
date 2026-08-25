@@ -125,19 +125,19 @@ class RedisWrapper(redis.Redis):
 
 		return ret
 
-	def get_keys(self, key, user=None, shared=False):
+	def get_keys(self, key):
 		"""Return keys starting with `key`."""
 		try:
-			key = self.make_key(key + "*", user=user, shared=shared)
+			key = self.make_key(key + "*")
 			return self.keys(key)
 
 		except redis.exceptions.ConnectionError:
 			regex = re.compile(cstr(key).replace("|", r"\|").replace("*", r"[\w]*"))
 			return [k for k in list(frappe.local.cache) if regex.match(cstr(k))]
 
-	def delete_keys(self, key, user=None, shared=False):
+	def delete_keys(self, key):
 		"""Delete keys with wildcard `*`."""
-		self.delete_value(self.get_keys(key, user=user, shared=shared), make_keys=False)
+		self.delete_value(self.get_keys(key), make_keys=False)
 
 	def delete_key(self, *args, **kwargs):
 		self.delete_value(*args, **kwargs)
@@ -162,20 +162,17 @@ class RedisWrapper(redis.Redis):
 		except redis.exceptions.ConnectionError:
 			pass
 
-	def lpush(self, key, value, user=None, shared=False):
-		return super().lpush(self.make_key(key, user=user, shared=shared), value)
+	def lpush(self, key, value):
+		return super().lpush(self.make_key(key), value)
 
 	def rpush(self, key, value):
 		return super().rpush(self.make_key(key), value)
 
-	def lpop(self, key, user=None, shared=False):
-		return super().lpop(self.make_key(key, user=user, shared=shared))
+	def lpop(self, key):
+		return super().lpop(self.make_key(key))
 
 	def rpop(self, key):
 		return super().rpop(self.make_key(key))
-
-	def blpop(self, key, timeout=0, user=None, shared=False):
-		return super().blpop(self.make_key(key, user=user, shared=shared), timeout=timeout)
 
 	def llen(self, key):
 		return super().llen(self.make_key(key))
@@ -408,7 +405,7 @@ def get_sentinel_connection(
 	)
 
 
-class _ClientTrackingMixin:
+class _TrackedConnection(redis.Connection):
 	def __init__(self, *args, **kwargs):
 		self._invalidator_id = kwargs.pop("_invalidator_id")
 		super().__init__(*args, **kwargs)
@@ -428,14 +425,6 @@ class _ClientTrackingMixin:
 				raise Exception("Redis version is not supported, upgrade to Redis 6.0 or higher.")
 			else:
 				raise
-
-
-class _TrackedConnection(_ClientTrackingMixin, redis.Connection):
-	pass
-
-
-class _TrackedUnixDomainSocketConnection(_ClientTrackingMixin, redis.UnixDomainSocketConnection):
-	pass
 
 
 CachedValue = namedtuple("CachedValue", ["value", "expiry"])
@@ -503,13 +492,9 @@ class ClientCache:
 		if not self.invalidator_id:
 			return
 
-		redis_url = frappe.conf.get("redis_cache") or ""
-		connection_class = (
-			_TrackedUnixDomainSocketConnection if redis_url.startswith("unix://") else _TrackedConnection
-		)
 		self.redis: RedisWrapper = RedisWrapper.from_url(
-			redis_url,
-			connection_class=connection_class,
+			frappe.conf.get("redis_cache"),
+			connection_class=_TrackedConnection,
 			_invalidator_id=self.invalidator_id,
 			protocol=2,
 		)

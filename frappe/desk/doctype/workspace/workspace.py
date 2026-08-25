@@ -7,7 +7,7 @@ from json import loads
 import frappe
 from frappe import _
 from frappe.boot import get_sidebar_items
-from frappe.desk.desktop import get_workspaces, save_new_widget
+from frappe.desk.desktop import get_workspace_sidebar_items, save_new_widget
 from frappe.desk.doctype.workspace_sidebar.workspace_sidebar import add_to_my_workspace
 from frappe.desk.utils import validate_route_conflict
 from frappe.model.document import Document
@@ -292,7 +292,7 @@ def get_report_type(report):
 
 
 @frappe.whitelist()
-def new_page(new_page: str):
+def new_page(new_page):
 	if not loads(new_page):
 		return
 
@@ -331,7 +331,7 @@ def new_page(new_page: str):
 	# add to workspace sidebar items
 	if not doc.public:
 		add_to_my_workspace(doc)
-	workspaces = get_workspaces()
+	workspaces = get_workspace_sidebar_items()
 	return {"workspace_pages": workspaces, "sidebar_items": get_sidebar_items(workspaces)}
 
 
@@ -340,13 +340,6 @@ def save_page(name, public, new_widgets, blocks):
 	public = frappe.parse_json(public)
 
 	doc = frappe.get_doc("Workspace", name)
-	can_edit = is_workspace_manager() or (not doc.public and doc.for_user == frappe.session.user)
-	if not can_edit:
-		frappe.throw(
-			_("You need the Workspace Manager role to edit this workspace."),
-			frappe.PermissionError,
-		)
-
 	if not doc.type:
 		doc.type = "Workspace"
 
@@ -362,11 +355,9 @@ def update_page(name, title, icon, indicator_color, parent, public):
 	public = frappe.parse_json(public)
 	doc = frappe.get_doc("Workspace", name)
 
-	if doc.get("public") and not is_workspace_manager():
-		frappe.throw(_("Need Workspace Manager role to edit public workspaces."))
-	elif not doc.get("public") and doc.get("for_user") != frappe.session.user and not is_workspace_manager():
+	if not doc.get("public") and doc.get("for_user") != frappe.session.user and not is_workspace_manager():
 		frappe.throw(
-			_("Need Workspace Manager role to edit private workspace of other users."),
+			_("Need Workspace Manager role to edit private workspace of other users"),
 			frappe.PermissionError,
 		)
 

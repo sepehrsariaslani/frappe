@@ -486,10 +486,13 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 	def get_database_list(self):
 		return self.sql("SELECT datname FROM pg_database", pluck=True)
 
-	def _estimate_count(self, table: str) -> int:
+	def estimate_count(self, doctype: str):
+		"""Get estimated count of total rows in a table."""
 		from frappe.utils.data import cint
 
-		# Scope to current schema to avoid cross-site estimates
+		table = get_table_name(doctype)
+
+		# Scope to current database to avoid cross-site estimates
 		count = self.sql(
 			"select c.reltuples from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relname = %s and n.nspname = %s and c.relkind = 'r'",
 			(table, self.db_schema),

@@ -9,17 +9,12 @@
     </div>
     {% } else { %}
         <div class="card-title-container card-close-button">
-            {% if !card.hide_icon %}
-                {%= frappe.utils.icon(card.icon, "sm", "", "", "card-icon") %}
-            {% endif %}
+            {%= frappe.utils.icon(card.icon, "sm", "", "", "card-icon") %}
             <span class="flex flex-column w-100">
                 <div class="sidebar-card-title">{{ card.title }}</div>
                 <div class="sidebar-card-description">{{ card.message }}</div>
             </span>
-            <span class="sidebar-card-header-slot flex"></span>
-            <button type="button" class="close-button btn btn-default">
-                {%= frappe.utils.icon("x", "sm") %}
-            </button>
+        {%= frappe.utils.icon("x","sm", "", "", "card-icon cursor-pointer close-button") %}
          </div>
     {% } %}
     <div class="sidebar-card-actions flex">

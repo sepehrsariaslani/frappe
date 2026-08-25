@@ -2772,11 +2772,11 @@
  },
  "Turkmenistan": {
   "code": "tm",
-  "currency": "TMT",
-  "currency_fraction": "Tenge",
+  "currency": "TMM",
+  "currency_fraction": "Tennesi",
   "currency_fraction_units": 100,
   "currency_name": "Manat",
-  "currency_symbol": "TMT",
+  "currency_symbol": "m",
   "number_format": "#,###.##",
   "timezones": [
    "Asia/Ashgabat"

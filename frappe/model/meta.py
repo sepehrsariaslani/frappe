@@ -603,13 +603,6 @@ class Meta(Document):
 							# Break out to add this just after the last field
 							break
 						target_position = current_field
-				elif field.fieldtype == "Tab Break" and target_position in field_order:
-					# Find the next tab break and set target_position to just one field before,
-					# so the new tab is appended after the current tab instead of splitting it
-					for current_field in field_order[field_order.index(target_position) + 1 :]:
-						if self._fields[current_field].fieldtype == "Tab Break":
-							break
-						target_position = current_field
 				insertion_map.setdefault(target_position, []).append(field.fieldname)
 
 			else:
@@ -1029,7 +1022,7 @@ CACHE_PROPERTIES = frozenset(prop for prop, value in vars(Meta).items() if isins
 
 
 def _serialize(doc, no_nulls=False, *, is_child=False):
-	out = frappe._dict()
+	out = {}
 	for key, value in doc.__dict__.items():
 		if not is_child:
 			if key in CACHE_PROPERTIES:

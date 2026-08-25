@@ -146,7 +146,7 @@ class DBTable:
 					# case when the field is no longer a varchar
 					continue
 				current_length = current_length[0]
-				if cint(current_length) > cint(new_length):
+				if cint(current_length) != cint(new_length):
 					try:
 						# check for truncation
 						max_length = frappe.db.sql(
@@ -408,13 +408,8 @@ def validate_column_length(fieldname):
 		frappe.throw(_("Fieldname is limited to 64 characters ({0})").format(fieldname))
 
 
-def get_definition(fieldtype, precision=None, length=None, *, options=None, duckdb=False):
-	if duckdb:
-		from frappe.database.duckdb.database import get_type_map
-
-		d = get_type_map().get(fieldtype)
-	else:
-		d = frappe.db.type_map.get(fieldtype)
+def get_definition(fieldtype, precision=None, length=None, *, options=None):
+	d = frappe.db.type_map.get(fieldtype)
 
 	if (
 		fieldtype == "Link"

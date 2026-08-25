@@ -171,12 +171,7 @@ frappe.ui.Page = class Page {
 
 		// keyboard shortcuts
 		let menu_btn = this.menu_btn_group.find("button");
-		menu_btn
-			.attr("title", __("Menu"))
-			.tooltip({ delay: { show: 600, hide: 100 } })
-			.on("click mousedown", function () {
-				$(this).tooltip("hide");
-			});
+		menu_btn.attr("title", __("Menu")).tooltip({ delay: { show: 600, hide: 100 } });
 		frappe.ui.keys
 			.get_shortcut_group(this.page_actions[0])
 			.add(menu_btn, menu_btn.find(".menu-btn-group-label"));
@@ -454,9 +449,7 @@ frappe.ui.Page = class Page {
 		let $icon = ``;
 
 		if (icon) {
-			$icon = `<span class="menu-item-icon flex align-items-center justify-items-center">${frappe.utils.icon(
-				icon
-			)}</span>`;
+			$icon = `<span class="menu-item-icon">${frappe.utils.icon(icon)}</span>`;
 		}
 
 		if (shortcut) {
@@ -466,7 +459,9 @@ frappe.ui.Page = class Page {
 					<a class="grey-link dropdown-item" href="#" onClick="return false;">
 						${$icon}
 						<span class="menu-item-label">${label}</span>
-						<span class="menu-item-shortcut">${shortcut_obj.shortcut_label}</span>
+						<kbd class="pull-right">
+							<span>${shortcut_obj.shortcut_label}</span>
+						</kbd>
 					</a>
 				</li>
 			`);
@@ -519,7 +514,16 @@ frappe.ui.Page = class Page {
 		} else {
 			shortcut_obj = shortcut;
 		}
-		shortcut_obj.shortcut_label = frappe.ui.keys.get_shortcut_label(shortcut_obj.shortcut);
+		// label
+		if (frappe.utils.is_mac()) {
+			shortcut_obj.shortcut_label = shortcut_obj.shortcut
+				.replace("Ctrl", "⌘")
+				.replace("Alt", "⌥");
+		} else {
+			shortcut_obj.shortcut_label = shortcut_obj.shortcut;
+		}
+
+		shortcut_obj.shortcut_label = shortcut_obj.shortcut_label.replace("Shift", "⇧");
 
 		// actual shortcut string
 		shortcut_obj.shortcut = shortcut_obj.shortcut.toLowerCase();
@@ -596,7 +600,7 @@ frappe.ui.Page = class Page {
 	btn_disable_enable(btn, response) {
 		if (response && response.then) {
 			btn.prop("disabled", true);
-			response.finally(() => {
+			response.then(() => {
 				btn.prop("disabled", false);
 			});
 		} else if (response && response.always) {

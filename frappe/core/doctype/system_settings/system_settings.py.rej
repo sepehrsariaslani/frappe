@@ -1,0 +1,11 @@
+@@ -189,7 +215,10 @@
+ 
+ 		frappe.cache.delete_value("system_settings")
+ 		frappe.cache.delete_value("time_zone")
++		from frappe.core.doctype.system_settings.system_theme import generate_system_theme_css
+ 
++		generate_system_theme_css(doc=self)
++
+ 		if frappe.flags.update_last_reset_password_date:
+ 			update_last_reset_password_date()
+ 

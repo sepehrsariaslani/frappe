@@ -292,12 +292,10 @@ export default class GridRow {
 						delete this.grid.filter["row-index"];
 					}
 
-					if (this.grid.grid_sortable) {
-						this.grid.grid_sortable.option(
-							"disabled",
-							Object.keys(this.grid.filter).length !== 0
-						);
-					}
+					this.grid.grid_sortable.option(
+						"disabled",
+						Object.keys(this.grid.filter).length !== 0
+					);
 
 					this.grid.prevent_build = true;
 					me.grid.refresh();
@@ -744,12 +742,7 @@ export default class GridRow {
 
 			total_colsize += colsize;
 			let txt = this.doc
-				? frappe.format(
-						this._escape_for_format(this.doc[df.fieldname], df),
-						df,
-						null,
-						this.doc
-				  )
+				? frappe.format(this.doc[df.fieldname], df, null, this.doc)
 				: __(df.label, null, df.parent);
 
 			if (this.doc && df.fieldtype === "Select") {
@@ -797,30 +790,6 @@ export default class GridRow {
 			// last empty column
 			$(`<div class="col grid-static-col search"></div>`).appendTo(this.row);
 		}
-
-		// Button has no stored value; static_area stays empty while field_area is hidden until the row
-		// becomes "editable". Keep the control visible for Button columns in editable grids.
-		this.columns_list.forEach((column) => {
-			if (this.should_show_button_in_idle_grid_cell(column)) {
-				this.make_control(column);
-				column.static_area.toggle(false);
-				column.field_area.toggle(true);
-			}
-		});
-	}
-
-	/**
-	 * Button fields only: show the real control even when this row is not the active editable row.
-	 * Scope is intentionally narrow to avoid changing behaviour of value fields.
-	 */
-	should_show_button_in_idle_grid_cell(column) {
-		return (
-			column.df.fieldtype === "Button" &&
-			this.grid.allow_on_grid_editing() &&
-			this.grid.is_editable() &&
-			this.doc &&
-			!column.df.hidden
-		);
 	}
 
 	set_dependant_property(df) {
@@ -1190,28 +1159,17 @@ export default class GridRow {
 					let df = this.grid.visible_columns[index][0];
 
 					let txt = this.doc
-						? frappe.format(
-								this._escape_for_format(this.doc[df.fieldname], df),
-								df,
-								null,
-								this.doc
-						  )
+						? frappe.format(this.doc[df.fieldname], df, null, this.doc)
 						: __(df.label, null, df.parent);
 
 					this.refresh_field(df.fieldname, txt);
 				}
 
-				if (this.should_show_button_in_idle_grid_cell(column)) {
-					this.make_control(column);
-					column.static_area.toggle(false);
-					column.field_area.toggle(true);
-				} else {
-					if (!column.df.hidden) {
-						column.static_area.toggle(true);
-					}
-
-					column.field_area && column.field_area.toggle(false);
+				if (!column.df.hidden) {
+					column.static_area.toggle(true);
 				}
+
+				column.field_area && column.field_area.toggle(false);
 			});
 			frappe.ui.form.editable_row = null;
 		}
@@ -1559,23 +1517,6 @@ export default class GridRow {
 			this.grid.grid_pagination.go_to_page(new_page);
 		}
 	}
-	// Escape plain-text field values before passing to frappe.format(), so the formatted
-	// output is safe to inject via .html(). Mirrors the same pre-escaping in base_input.js.
-	_escape_for_format(value, df) {
-		const PLAIN_TEXT_FIELDTYPES = [
-			"Data",
-			"Long Text",
-			"Small Text",
-			"Text",
-			"Password",
-			"MultiSelect",
-		];
-		if (df && PLAIN_TEXT_FIELDTYPES.includes(df.fieldtype)) {
-			return frappe.utils.escape_html(cstr(value));
-		}
-		return value;
-	}
-
 	refresh_field(fieldname, txt) {
 		let fields =
 			this.grid.user_defined_columns && this.grid.user_defined_columns.length > 0
@@ -1588,21 +1529,11 @@ export default class GridRow {
 
 		// format values if no frm
 		if (df && this.doc) {
-			txt = frappe.format(
-				this._escape_for_format(this.doc[fieldname], df),
-				df,
-				null,
-				this.doc
-			);
+			txt = frappe.format(this.doc[fieldname], df, null, this.doc);
 		}
 
 		if (!txt && this.frm) {
-			txt = frappe.format(
-				this._escape_for_format(this.doc[fieldname], df),
-				df,
-				null,
-				this.frm.doc
-			);
+			txt = frappe.format(this.doc[fieldname], df, null, this.frm.doc);
 		}
 
 		// reset static value

@@ -967,20 +967,17 @@ def print_language(language: str):
 
 	# remember original values
 	_lang = frappe.local.lang
-	_jenv_restricted = getattr(frappe.local, "jenv_restricted", None)
-	_jenv_unrestricted = getattr(frappe.local, "jenv_unrestricted", None)
+	_jenv = frappe.local.jenv
 
 	# set language, empty any existing lang_full_dict and jenv
 	frappe.local.lang = language
-	frappe.local.jenv_restricted = None
-	frappe.local.jenv_unrestricted = None
+	frappe.local.jenv = None
 
 	yield
 
 	# restore original values
 	frappe.local.lang = _lang
-	frappe.local.jenv_restricted = _jenv_restricted
-	frappe.local.jenv_unrestricted = _jenv_unrestricted
+	frappe.local.jenv = _jenv
 
 
 # Backward compatibility

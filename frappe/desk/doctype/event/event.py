@@ -4,7 +4,6 @@
 
 import json
 from datetime import date, datetime
-from typing import Any
 
 import frappe
 import frappe.share
@@ -114,9 +113,6 @@ class Event(Document):
 
 		if not self.sync_with_google_calendar:
 			self.add_video_conferencing = 0
-
-		if self.google_meet_link and not self.google_meet_link.startswith("https://"):
-			self.google_meet_link = ""
 
 	def before_save(self):
 		self.set_participants_email()
@@ -241,15 +237,8 @@ class Event(Document):
 @frappe.whitelist()
 def update_attending_status(event_name, attendee, status):
 	event_doc = frappe.get_doc("Event", event_name)
-	caller = frappe.session.user
 
-	if attendee != caller:
-		if event_doc.owner != caller and not frappe.has_permission("Event", "write", event_name):
-			frappe.throw(
-				_("You are not allowed to update attendance for another user."), frappe.PermissionError
-			)
-
-	if event_doc.owner == caller:
+	if event_doc.owner == attendee == frappe.session.user:
 		frappe.db.set_value("Event", event_name, "attending", status)
 		return
 
@@ -258,7 +247,8 @@ def update_attending_status(event_name, attendee, status):
 			frappe.db.set_value("Event Participants", participant.name, "attending", status)
 			return
 
-	frappe.throw(_("Attendee not found in this event."))
+	if not has_permission(event_doc, user=attendee):
+		frappe.throw(_("You are not allowed to update the status of this event."))
 
 
 @frappe.whitelist()
@@ -342,20 +332,9 @@ def send_event_digest():
 @frappe.whitelist()
 @http_cache(max_age=5 * 60, stale_while_revalidate=60 * 60)
 def get_events(
-	start: str | date,
-	end: str | date,
-	user: str | None = None,
-	for_reminder: bool = False,
-	filters: str | list | dict[str, Any] | None = None,
+	start: date, end: date, user: str | None = None, for_reminder: bool = False, filters=None
 ) -> list[frappe._dict]:
-	start, end = getdate(start), getdate(end)
-
-	caller = frappe.session.user
-	target_user = user or caller
-
-	if user and user != caller:
-		if not frappe.has_permission("Event", ptype="read"):
-			frappe.throw(_("You are not allowed to view events for another user."), frappe.PermissionError)
+	user = user or frappe.session.user
 	type EventLikeDict = Event | frappe._dict
 	resolved_events: list[EventLikeDict] = []
 
@@ -427,7 +406,7 @@ def get_events(
 		{
 			"start": start,
 			"end": end,
-			"user": target_user,
+			"user": user,
 		},
 		as_dict=True,
 	)

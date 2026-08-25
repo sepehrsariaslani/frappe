@@ -68,7 +68,6 @@ class FrappeMail:
 		files: dict | None = None,
 		headers: dict[str, str] | None = None,
 		timeout: int | tuple[int, int] = (60, 120),
-		raw_response: bool = False,
 	) -> Any | None:
 		"""Makes a request to the Frappe Mail API."""
 
@@ -92,17 +91,12 @@ class FrappeMail:
 		)
 		raise_for_status(response)
 
-		# The suite app routes return raw JSON without Frappe's `message`/`data`
-		# wrapper, which `post_process()` would collapse to `None`.
-		if raw_response:
-			return response.json()
-
 		return self.client.post_process(response)
 
 	def validate(self) -> None:
 		"""Validates if the user is allowed to send or receive emails."""
 
-		endpoint = "/auth/validate"
+		endpoint = "/api/method/mail.api.auth.validate"
 		data = {"email": self.email}
 		self.request("POST", endpoint=endpoint, data=data)
 
@@ -112,7 +106,7 @@ class FrappeMail:
 		"""Sends an email using the Frappe Mail API."""
 
 		session_id = str(uuid.uuid4())
-		endpoint = "/outbound/send-raw"
+		endpoint = "/api/method/mail.api.outbound.send_raw"
 
 		if isinstance(message, str):
 			message = message.encode("utf-8")
@@ -142,13 +136,13 @@ class FrappeMail:
 	) -> dict[str, str | list[str]]:
 		"""Pull emails for the account using the Frappe Mail API."""
 
-		endpoint = "/inbound/pull-raw"
+		endpoint = "/api/method/mail.api.inbound.pull_raw"
 		if last_received_at:
 			last_received_at = add_or_update_tzinfo(last_received_at)
 
 		data = {"mailbox": mailbox, "limit": limit, "last_received_at": last_received_at}
 		headers = {"X-Site": frappe.utils.get_url()}
-		response = self.request("GET", endpoint=endpoint, data=data, headers=headers, raw_response=True)
+		response = self.request("GET", endpoint=endpoint, data=data, headers=headers)
 		last_received_at = convert_utc_to_system_timezone(get_datetime(response["last_received_at"]))
 
 		return {"latest_messages": response["mails"], "last_received_at": last_received_at}

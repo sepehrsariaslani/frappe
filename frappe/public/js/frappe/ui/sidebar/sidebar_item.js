@@ -32,18 +32,11 @@ frappe.ui.sidebar_item.TypeLink = class SidebarItem {
 
 				path = frappe.utils.generate_route(args);
 			} else if (this.item.link_type == "Workspace") {
-				let workspace_slug = frappe.router.slug(this.item.link_to || "");
-				let workspace = frappe.workspaces && frappe.workspaces[workspace_slug];
-				if (!workspace) {
-					if (this.item.route) {
-						path = this.item.route;
-					}
-					return path;
-				}
-				if (workspace.public) {
-					path = "/desk/" + workspace_slug;
+				let workspaces = frappe.workspaces[frappe.router.slug(this.item.link_to)];
+				if (workspaces.public) {
+					path = "/desk/" + frappe.router.slug(this.item.link_to);
 				} else {
-					path = "/desk/private/" + workspace_slug;
+					path = "/desk/private/" + frappe.router.slug(this.item.link_to);
 				}
 
 				if (this.item.route) {

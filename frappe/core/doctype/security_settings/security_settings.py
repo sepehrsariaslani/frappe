@@ -2,19 +2,12 @@
 # For license information, please see license.txt
 
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
 import frappe
 import frappe.utils
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import (
-	get_system_timezone,
-	now_datetime,
-	validate_email_address,
-	validate_phone_number,
-	validate_url,
-)
+from frappe.utils import validate_email_address, validate_phone_number, validate_url
 
 
 class SecuritySettings(Document):
@@ -76,7 +69,8 @@ class SecuritySettings(Document):
 		expires = self.public_expires or frappe.utils.add_years(frappe.utils.now_datetime(), 1)
 		if isinstance(expires, str):
 			expires = datetime.fromisoformat(expires)
-		expires = expires.replace(microsecond=0, tzinfo=ZoneInfo(get_system_timezone())).astimezone(UTC)
+		expires = expires.replace(microsecond=0)
+		expires = expires.astimezone(UTC)
 		value = expires.strftime("%Y-%m-%dT%H:%M:%SZ")
 		return f"Expires: {value}"
 
@@ -118,5 +112,5 @@ class SecuritySettings(Document):
 			expires = self.public_expires
 			if isinstance(expires, str):
 				expires = datetime.fromisoformat(expires)
-			if expires <= now_datetime():
+			if expires <= datetime.now():
 				frappe.throw(_("Expiration date must be in the future"))

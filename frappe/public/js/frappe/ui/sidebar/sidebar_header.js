@@ -57,12 +57,6 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 			let is_dark = frappe.ui.get_current_theme() === "dark";
 			this.dropdown_items.push(
 				{
-					name: "display",
-					label: "Display",
-					icon: "monitor",
-					items: this.get_display_siblings(is_dark),
-				},
-				{
 					label: "Session Defaults",
 					action: "frappe.ui.toolbar.setup_session_defaults()",
 					is_standard: 1,
@@ -76,7 +70,18 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 					action: "frappe.ui.toolbar.clear_cache()",
 					is_standard: 1,
 					icon: "rotate-ccw",
-					shortcut: "Shift+Ctrl+R",
+				},
+				{
+					label: "Toggle Full Width",
+					action: "frappe.ui.toolbar.toggle_full_width()",
+					is_standard: 1,
+					icon: "maximize",
+				},
+				{
+					label: "Toggle Theme",
+					action: "new frappe.ui.ThemeSwitcher().show()",
+					is_standard: 1,
+					icon: is_dark ? "sun" : "moon",
 				},
 				{
 					name: "help",
@@ -208,15 +213,10 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 		help_dropdown_items = custom_help_links.concat(help_dropdown_items);
 
 		navbar_settings.help_dropdown.forEach((element) => {
-			if (element.hidden) return;
-			if (element.condition && !frappe.utils.eval(element.condition)) return;
 			let dropdown_children = {
 				name: element.name,
 				label: element.item_label,
 			};
-			if (element.action?.includes("frappe.ui.toolbar.show_shortcuts")) {
-				dropdown_children.shortcut = "Shift+/";
-			}
 			if (element.item_type === "Route") {
 				dropdown_children.url = element.route;
 			}
@@ -229,38 +229,6 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 		});
 
 		return help_dropdown_items;
-	}
-
-	get_display_siblings(is_dark) {
-		const sidebar = this.sidebar;
-		return [
-			{
-				name: "toggle-theme",
-				label: __("Toggle Theme"),
-				icon: is_dark ? "sun" : "moon",
-				shortcut: "Shift+Ctrl+G",
-				onClick: function () {
-					new frappe.ui.ThemeSwitcher().show();
-				},
-			},
-			{
-				name: "toggle-full-width",
-				label: __("Toggle Full Width"),
-				icon: "maximize",
-				onClick: function () {
-					frappe.ui.toolbar.toggle_full_width();
-				},
-			},
-			{
-				name: "toggle-sidebar",
-				label: __("Toggle Sidebar"),
-				icon: "panel-right-open",
-				shortcut: "Ctrl+/",
-				onClick: function () {
-					sidebar.toggle_width();
-				},
-			},
-		];
 	}
 
 	get_custom_help_links() {
@@ -297,26 +265,25 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 		this.$drop_icon = this.wrapper.find(".drop-icon");
 	}
 	set_header_icon() {
-		const to_img = (src) => `<img src="${src}"></img>`;
 		let desktop_icon = this.get_desktop_icon_by_label(this.sidebar.sidebar_title);
 		let desktop_icon_url =
 			desktop_icon && frappe.utils.get_desktop_icon(desktop_icon.label, "solid");
 		if (desktop_icon_url) {
 			this.header_icon = desktop_icon_url;
-			this.header_icon = to_img(this.header_icon);
+			this.header_icon = `<img src=${this.header_icon}></img>`;
 		} else if (desktop_icon && desktop_icon.logo_url) {
 			this.header_icon = desktop_icon.logo_url;
-			this.header_icon = to_img(this.header_icon);
+			this.header_icon = `<img src=${this.header_icon}></img>`;
 		} else if (this.sidebar.sidebar_data) {
 			this.header_icon = this.sidebar.sidebar_data.header_icon;
 			this.header_icon = frappe.utils.desktop_icon(this.sidebar.sidebar_title, "gray", "sm");
 		} else {
 			this.header_icon = this.get_default_icon();
-			this.header_icon = to_img(this.header_icon);
+			this.header_icon = `<img src=${this.header_icon}></img>`;
 		}
 	}
 	get_default_icon() {
-		return frappe.boot.app_data?.[0]?.app_logo_url || "/assets/frappe/images/frappe-framework-logo.svg";
+		return frappe.boot.app_data[0].app_logo_url;
 	}
 	get_desktop_icon_by_label(title, filters) {
 		if (!filters) {
@@ -364,13 +331,6 @@ frappe.ui.SidebarHeader = class SidebarHeader {
 					}
 				</div>
 				<span class="menu-item-title">${item.label}</span>
-				${
-					item.shortcut
-						? `<span class="menu-item-shortcut">${frappe.ui.keys.get_shortcut_label(
-								item.shortcut
-						  )}</span>`
-						: ""
-				}
 			</a>
 		</div>`).appendTo(this.dropdown_menu);
 	}

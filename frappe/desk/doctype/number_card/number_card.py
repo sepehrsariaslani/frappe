@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.desk.desk_views import DeskViews
+from frappe.boot import get_allowed_report_names
 from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
 from frappe.modules.export_file import export_to_files
@@ -79,40 +79,42 @@ class NumberCard(Document):
 
 
 def get_permission_query_conditions(user=None):
-	if not user:
-		user = frappe.session.user
-
-	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
+	# The user param is ignored because `get_allowed_report_names` and `get_doctypes_with_read` don't support it.
+	if frappe.session.user == "Administrator":
 		return
 
-	allowed_reports = DeskViews.get_allowed_report_names(user=user)
-	allowed_doctypes = get_doctypes_with_read(user)
-	allowed_modules = [module.get("module_name") for module in get_modules_from_all_apps_for_user(user)]
+	if "System Manager" in frappe.get_roles():
+		return
+
+	allowed_reports = get_allowed_report_names()
+	allowed_doctypes = get_doctypes_with_read()
+	allowed_modules = [module.get("module_name") for module in get_modules_from_all_apps_for_user()]
 
 	nc = frappe.qb.DocType("Number Card")
 	conditions = (
 		((nc.type == "Report") & nc.report_name.isin(allowed_reports))
 		| ((nc.type == "Custom") & nc.document_type.isin(allowed_doctypes))
 		| ((nc.type == "Document Type") & nc.document_type.isin(allowed_doctypes))
-	) & (nc.module.isin(allowed_modules) | nc.module.isnull() | (nc.module == ""))
+	) & (nc.module.isin(allowed_modules) | nc.module.isnull() | nc.module == "")
 
 	return conditions.get_sql(quote_char="`")
 
 
 def has_permission(doc, ptype, user):
-	if not user:
-		user = frappe.session.user
-
-	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
+	# The user param is ignored because `get_allowed_report_names` and `get_doctypes_with_read` don't support it.
+	if frappe.session.user == "Administrator":
 		return True
 
-	if doc.type == "Report" and doc.report_name in DeskViews.get_allowed_report_names(user=user):
+	if "System Manager" in frappe.get_roles():
 		return True
 
-	if doc.type == "Custom" and doc.document_type in get_doctypes_with_read(user):
+	if doc.type == "Report" and doc.report_name in get_allowed_report_names():
 		return True
 
-	if doc.type == "Document Type" and doc.document_type in get_doctypes_with_read(user):
+	if doc.type == "Custom" and doc.document_type in get_doctypes_with_read():
+		return True
+
+	if doc.type == "Document Type" and doc.document_type in get_doctypes_with_read():
 		return True
 
 	return False
@@ -148,11 +150,7 @@ def get_result(doc, filters, to_date=None):
 		filters.append([doc.document_type, "creation", "<", to_date])
 
 	res = frappe.get_list(
-		doc.document_type,
-		fields=fields,
-		filters=filters,
-		parent_doctype=doc.parent_document_type,
-		order_by=None,
+		doc.document_type, fields=fields, filters=filters, parent_doctype=doc.parent_document_type
 	)
 	number = res[0]["result"] if res else 0
 
@@ -223,14 +221,9 @@ def get_cards_for_user(doctype, txt, searchfield, start, page_len, filters):
 		filters=filters,
 	)
 
-	allowed_modules = {module.get("module_name") for module in get_modules_from_all_apps_for_user()}
-
 	return (
 		condition_query.select(numberCard.name, numberCard.label, numberCard.document_type)
 		.where((numberCard.owner == frappe.session.user) | (numberCard.is_public == 1))
-		.where(
-			numberCard.module.isin(allowed_modules) | numberCard.module.isnull() | (numberCard.module == "")
-		)
 		.where(Criterion.any(search_conditions))
 	).run()
 

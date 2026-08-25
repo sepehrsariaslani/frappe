@@ -31,7 +31,6 @@ frappe.views.BaseList = class BaseList {
 			this.setup_main_section,
 			this.setup_view,
 			this.setup_view_menu,
-			this.setup_resize_handler,
 		].map((fn) => fn.bind(this));
 
 		this.init_promise = frappe.run_serially(tasks);
@@ -430,32 +429,17 @@ frappe.views.BaseList = class BaseList {
 		});
 	}
 
-	setup_resize_handler() {
-		$(window)
-			.off("resize.list-view")
-			.on(
-				"resize.list-view",
-				frappe.utils.debounce(() => {
-					if (cur_list?.$result?.is(":visible")) {
-						cur_list.set_result_height();
-					}
-				}, 300)
-			);
-	}
-
 	set_result_height() {
 		if (this.view !== "List") return;
 		this.$result[0].style.removeProperty("height");
 		// place it at the footer of the page
 
-		let $result_container = this.$result.parent(".result-container");
-		let main_rect = $(".main-section").get(0).getBoundingClientRect();
-		let result_top = $result_container.get(0).getBoundingClientRect().top - main_rect.top;
-		let resultContainerHeight = Math.floor(
-			main_rect.height - this.$paging_area.get(0).getBoundingClientRect().height - result_top
-		);
-		$result_container.css({
-			height: resultContainerHeight + "px",
+		let resultContainerHeight = window.innerHeight - this.$paging_area.get(0).offsetHeight;
+		if (!frappe.is_mobile()) {
+			resultContainerHeight = resultContainerHeight - this.$result.get(0).offsetTop;
+		}
+		this.$result.parent(".result-container").css({
+			height: resultContainerHeight - (frappe.is_mobile() ? 100 : 0) + "px",
 		});
 
 		this.$result[0].style.height =
@@ -796,12 +780,8 @@ class FilterArea {
 
 			// set in list view area if filters are present
 			// don't set like filter on link fields (gets reset)
-			// a Check standard filter is a checkbox that can't hold "= 0", so keep it as a regular filter
-			const is_unchecked_check =
-				fields_dict[fieldname]?.df?.fieldtype === "Check" && !cint(value);
 			if (
 				fields_dict[fieldname] &&
-				!is_unchecked_check &&
 				(condition === "=" ||
 					(condition === "like" && fields_dict[fieldname]?.df?.fieldtype != "Link") ||
 					(condition === "descendants of (inclusive)" &&
@@ -1068,7 +1048,7 @@ class FilterArea {
 
 	apply_filter(fieldname, value) {
 		let operator = "=";
-		if (value === "" || (fieldname === "_user_tags" && value === __("No Tags"))) {
+		if (value === "" || (fieldname === "_user_tags" && value === "No Tags")) {
 			operator = "is";
 			value = "not set";
 		}
@@ -1275,10 +1255,7 @@ class FilterArea {
 			];
 
 			if (input_fieldtypes.includes(df.fieldtype)) {
-				const saved_conditions =
-					frappe.get_user_settings(this.list_view.doctype, this.list_view.view_name)
-						.filter_conditions || {};
-				df.match_type = saved_conditions[df.fieldname] || df.condition || "=";
+				df.match_type = df.condition || "=";
 				this.filter_field_with_match_type(df);
 			}
 		});
@@ -1335,13 +1312,6 @@ class FilterArea {
 				field.df.match_type = new_type;
 				$dropdown.find("button").html(getIcon(new_type));
 
-				const saved_conditions =
-					frappe.get_user_settings(this.list_view.doctype, this.list_view.view_name)
-						.filter_conditions || {};
-				this.list_view.save_view_user_settings?.({
-					filter_conditions: { ...saved_conditions, [df.fieldname]: new_type },
-				});
-
 				let value = field.get_value?.();
 				if (new_type === "=" && value) {
 					field.set_value(value.replace(/^%+|%+$/g, ""));
@@ -1362,7 +1332,7 @@ class FilterArea {
 			let field = fields_dict[key];
 			let value = field.get_value();
 			if (value) {
-				let match_type = field.df.match_type || field.df.condition || "=";
+				let match_type = field.df.match_type || "=";
 				let condition;
 
 				if (match_type === "like") {

@@ -95,15 +95,11 @@ frappe.form.formatters = {
 			return "";
 		}
 
-		const valuePrecision = value?.toString().split(".")[1]?.length || 0;
 		const precision =
 			docfield.precision ||
 			cint(frappe.boot.sysdefaults && frappe.boot.sysdefaults.float_precision) ||
 			2;
-		return frappe.form.formatters._right(
-			format_number(value, null, Math.min(precision, valuePrecision)) + "%",
-			options
-		);
+		return frappe.form.formatters._right(format_number(value, null, precision) + "%", options);
 	},
 	Rating: function (value, docfield) {
 		let rating_html = "";
@@ -166,7 +162,7 @@ frappe.form.formatters = {
 	},
 	Check: function (value) {
 		return `<input type="checkbox" disabled
-			class="disabled-${cint(value) ? "selected" : "deselected"}">`;
+			class="disabled-${value ? "selected" : "deselected"}">`;
 	},
 	Link: function (value, docfield, options, doc) {
 		var doctype = docfield._options || docfield.options;
@@ -300,16 +296,14 @@ frappe.form.formatters = {
 	Tag: function (value) {
 		var html = "";
 		$.each((value || "").split(","), function (i, v) {
-			if (v) {
-				let ev = frappe.utils.escape_html(v);
+			if (v)
 				html += `
 				<span
 					class="data-pill btn-xs align-center ellipsis"
 					style="background-color: var(--control-bg); box-shadow: none; margin-right: 4px;"
-					data-field="_user_tags" data-label="${ev}">
-					${ev}
+					data-field="_user_tags" data-label="${v}'">
+					${v}
 				</span>`;
-			}
 		});
 		return html;
 	},
@@ -319,10 +313,13 @@ frappe.form.formatters = {
 	Assign: function (value) {
 		var html = "";
 		$.each(JSON.parse(value || "[]"), function (i, v) {
-			if (v) {
-				let ev = frappe.utils.escape_html(v);
-				html += `<span class="label label-warning" style="margin-right: 7px;" data-field="_assign">${ev}</span>`;
-			}
+			if (v)
+				html +=
+					'<span class="label label-warning" \
+				style="margin-right: 7px;"\
+				data-field="_assign">' +
+					v +
+					"</span>";
 		});
 		return html;
 	},
@@ -391,25 +388,20 @@ frappe.form.formatters = {
 		return formatted_values.join(", ");
 	},
 	Color: (value) => {
-		if (!value) return "";
-		let escaped_value = frappe.utils.escape_html(value);
-		return `<div>
-			<div class="selected-color" style="background-color: ${escaped_value}"></div>
-			<span class="color-value">${escaped_value}</span>
-		</div>`;
+		return value
+			? `<div>
+			<div class="selected-color" style="background-color: ${value}"></div>
+			<span class="color-value">${value}</span>
+		</div>`
+			: "";
 	},
 	Icon: (value) => {
-		if (!value) return "";
-		let escaped_value = frappe.utils.escape_html(value);
-		if (frappe.utils.is_emoji(value)) {
-			return `<div class='flex' style='gap: 8px;'>
-				<span class="icon-value">${escaped_value}</span>
-			</div>`;
-		}
-		return `<div class='flex' style='gap: 8px;'>
-			<div class="selected-icon">${frappe.utils.icon(escaped_value, "md")}</div>
-			<span class="icon-value">${escaped_value}</span>
-		</div>`;
+		return value
+			? `<div class='flex' style='gap: 8px;'>
+			<div class="selected-icon">${frappe.utils.icon(value, "md")}</div>
+			<span class="icon-value">${value}</span>
+		</div>`
+			: "";
 	},
 	Attach: format_attachment_url,
 	AttachImage: format_attachment_url,

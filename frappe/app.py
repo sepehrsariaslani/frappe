@@ -11,6 +11,8 @@ from werkzeug.middleware.profiler import ProfilerMiddleware
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.middleware.shared_data import SharedDataMiddleware
 from werkzeug.wrappers import Request, Response
+Request.max_form_memory_size = 100 * 1024 * 1024 * 1024 # Monkey Patch Globally
+
 from werkzeug.wsgi import ClosingIterator
 
 import frappe
@@ -115,8 +117,16 @@ def after_response_wrapper(app):
 	return application
 
 
+
+class FrappeRequest(Request):
+	max_form_memory_size = 100 * 1024 * 1024 * 1024 # 100GB
+	
+	def __init__(self, environ, populate_request=True, shallow=False):
+		super().__init__(environ, populate_request, shallow)
+		# print(f"[DEBUG-REQUEST-INIT] Limit: {self.max_form_memory_size}")
+
 @after_response_wrapper
-@Request.application
+@FrappeRequest.application
 def application(request: Request):
 	response = None
 
@@ -197,16 +207,17 @@ def run_after_request_hooks(request, response):
 
 
 def init_request(request):
+	frappe.local.request = request
+	frappe.local.request.after_response = CallbackManager()
+
+	frappe.local.is_ajax = frappe.get_request_header("X-Requested-With") == "XMLHttpRequest"
+
 	site = _site or request.headers.get("X-Frappe-Site-Name") or get_site_name(request.host)
-	try:
-		frappe.init(site, sites_path=_sites_path, force=True, is_request=True)
-	finally:
-		frappe.local.request = request
-		request.after_response = CallbackManager()
+	frappe.init(site, sites_path=_sites_path, force=True)
 
-	assert frappe.local.conf and frappe.local.conf.db_name, "config should be loaded"
-
-	frappe.local.is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+	if not (frappe.local.conf and frappe.local.conf.db_name):
+		# site does not exist
+		raise NotFound
 
 	frappe.connect(set_admin_as_user=False)
 	if frappe.local.conf.maintenance_mode:
@@ -221,6 +232,15 @@ def init_request(request):
 		request.max_content_length = get_max_file_size()
 	else:
 		request.max_content_length = cint(frappe.local.conf.get("max_file_size")) or 25 * 1024 * 1024
+	
+	request.max_form_memory_size = request.max_content_length
+
+	try:
+		# Log actual received size vs limit using Frappe Logger
+		frappe.logger("frappe.web").info(f"[DEBUG-SIZE] Path: {request.path}, Received: {request.content_length}, Limit: {request.max_content_length}, Form Memory: {request.max_form_memory_size}")
+	except:
+		pass
+
 	make_form_dict(request)
 
 	if request.method != "OPTIONS":
@@ -499,7 +519,6 @@ if sentry_dsn := os.getenv("FRAPPE_SENTRY_DSN"):
 		auto_enabling_integrations=False,
 		default_integrations=False,
 		integrations=integrations,
-		include_local_variables=False,
 		_experiments=experiments,
 		**kwargs,
 	)

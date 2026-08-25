@@ -10,11 +10,7 @@ from frappe.query_builder.utils import DocType
 
 
 @frappe.whitelist()
-def get_list_settings(doctype=None):
-	doctype = doctype or frappe.form_dict.get("doctype")
-	if not doctype:
-		return
-
+def get_list_settings(doctype):
 	try:
 		return frappe.get_cached_doc("List View Settings", doctype)
 	except frappe.DoesNotExistError:

@@ -40,13 +40,9 @@ $.extend(frappe.contacts, {
 
 	get_last_doc: function (frm) {
 		const reverse_routes = frappe.route_history.slice().reverse();
-		let last_route = null;
-		for (const route of reverse_routes) {
-			if (route[0] === "Form" && route[1] === frm.doctype) continue;
-			if (route[0] !== "Form") break; // stop at List or other non-Form routes
-			last_route = route;
-			break;
-		}
+		const last_route = reverse_routes.find((route) => {
+			return route[0] === "Form" && route[1] !== frm.doctype;
+		});
 		let doctype = last_route && last_route[1];
 		let docname = last_route && last_route[2];
 

@@ -21,6 +21,8 @@ frappe.ui.Sidebar = class Sidebar {
 		this.items = [];
 		this.cards = [];
 		this.setup_events();
+		this.sidebar_module_map = {};
+		this.build_sidebar_module_map();
 		this.standard_items_setup = false;
 		this.preferred_sidebars = [];
 	}
@@ -38,6 +40,16 @@ frappe.ui.Sidebar = class Sidebar {
 			this.find_nested_items();
 		} catch (e) {
 			console.log(e);
+		}
+	}
+	build_sidebar_module_map() {
+		for (const [key, value] of Object.entries(frappe.boot.workspace_sidebar_item)) {
+			if (value.module && !value.label.includes("My Workspaces")) {
+				if (!this.sidebar_module_map[value.module]) {
+					this.sidebar_module_map[value.module] = [];
+				}
+				this.sidebar_module_map[value.module].push(value.label);
+			}
 		}
 	}
 	choose_app_name() {
@@ -89,6 +101,7 @@ frappe.ui.Sidebar = class Sidebar {
 		this.$promotional_banners = this.wrapper.find(".promotional-banners");
 		this.$promotional_banners.empty();
 		this.promotional_banners = [];
+
 		this.get_crm_banner(module);
 		this.get_helpdesk_banner(module);
 
@@ -104,21 +117,6 @@ frappe.ui.Sidebar = class Sidebar {
 <path d="M5.02441 6.58252V9.09486H20.4627V10.9791L15.0135 16.3806V19.3201H12.9676V16.3806C12.9676 16.3806 9.78529 13.1774 8.62962 12.0469H5.03698L10.0156 17.0087C10.3045 17.2851 10.4678 17.6745 10.4678 18.0765V21.041L17.5259 21.0661V18.0765C17.5259 17.6745 17.6892 17.2851 17.9781 17.0087L22.9751 12.0343V6.58252H5.02441Z" fill="#F1FCFF"/>
 </svg>
 `);
-
-		// if CRM is installed on the site, link to the route configured via add_to_apps_screen
-		const installed_app = (frappe.boot.apps_data.apps || []).find((app) => app.name === "crm");
-		if (installed_app && installed_app.route) {
-			const title = __("Switch to CRM");
-			const message = __("Open Frappe CRM");
-			this.promotional_banners.push({
-				title,
-				message,
-				link: installed_app.route,
-				icon,
-				is_internal: true,
-			});
-			return;
-		}
 
 		const title = __("Switch to Frappe CRM");
 		const message = __(
@@ -139,23 +137,6 @@ frappe.ui.Sidebar = class Sidebar {
 <path d="M22.7237 12.1723V6.65771H5.26367V9.17005H20.2239V11.5568C19.2189 11.8457 18.4904 12.7753 18.4904 13.8681C18.4904 14.961 19.2189 15.878 20.2239 16.1669V18.5536H7.77601V11.9964H5.26367V21.066H22.7362V15.5514L21.2414 14.4836V13.2526L22.7362 12.1849L22.7237 12.1723Z" fill="#EDF7FF"/>
 </svg>
 `);
-
-		// if Helpdesk is installed on the site, link to the route configured via add_to_apps_screen
-		const installed_app = (frappe.boot.apps_data.apps || []).find(
-			(app) => app.name === "helpdesk"
-		);
-		if (installed_app && installed_app.route) {
-			const title = __("Switch to Helpdesk");
-			const message = __("Open Frappe Helpdesk");
-			this.promotional_banners.push({
-				title,
-				message,
-				link: installed_app.route,
-				icon,
-				is_internal: true,
-			});
-			return;
-		}
 
 		const title = __("Switch to Helpdesk");
 		const message = __(
@@ -178,17 +159,12 @@ frappe.ui.Sidebar = class Sidebar {
 		this.$promotional_banners.show();
 
 		this.promotional_banners.forEach((banner) => {
-			const target = banner.is_internal ? "" : ` target="_blank"`;
 			let banner_html = $(`
-				<a class="promotional-banner px-2"${target} title="${banner.message}">
-					<span class="promotional-banner-title">${banner.title}</span>
+				<a href="${banner.link}" class="promotional-banner" target="_blank" title="${banner.message}">
+					<span>${banner.title}</span>
 				</a>
 			`);
 
-			// Set href via .attr() rather than template interpolation: banner.link can be
-			// a server-derived route (apps_data), so interpolating it risks attribute
-			// breakout / javascript: injection.
-			banner_html.attr("href", banner.link);
 			banner_html.prepend(banner.icon);
 			me.$promotional_banners.append(banner_html);
 		});
@@ -300,7 +276,6 @@ frappe.ui.Sidebar = class Sidebar {
 
 			this.setup_onboarding();
 		});
-		this.store_last_show_sidebar_for_item();
 	}
 	add_card(card) {
 		if (this.cards && this.cards.find((i) => i.title === card.title)) return;
@@ -323,14 +298,19 @@ frappe.ui.Sidebar = class Sidebar {
 	}
 	setup_events() {
 		const me = this;
-		this.setup_reload();
 		frappe.router.on("change", function (router) {
-			if (frappe.route_options && frappe.route_options.sidebar) {
+			if (frappe.route_options.sidebar) {
 				frappe.app.sidebar.setup(frappe.route_options.sidebar);
 				frappe.route_options = null;
 			} else {
 				frappe.app.sidebar.set_workspace_sidebar(router);
 			}
+		});
+		$(document).on("page-change", function () {
+			frappe.app.sidebar.toggle();
+		});
+		$(document).on("form-refresh", function () {
+			frappe.app.sidebar.toggle();
 		});
 
 		frappe.ui.keys.add_shortcut({
@@ -340,24 +320,13 @@ frappe.ui.Sidebar = class Sidebar {
 		});
 	}
 
-	// Fired on page-change / form-refresh. Handles visibility, then runs the
-	// same resolver as the router so every navigation event picks a sidebar.
-	// set_workspace_sidebar is idempotent, so re-running it here is a no-op
-	// unless the route actually warrants a different sidebar.
-	refresh() {
+	toggle() {
 		if (!frappe.container.page.page) return;
 		if (frappe.container.page.page.hide_sidebar) {
 			this.wrapper.hide();
-			return;
-		}
-		this.wrapper.show();
-		this.set_workspace_sidebar();
-	}
-	toggle(hide) {
-		if (hide) {
-			this.wrapper.hide();
 		} else {
 			this.wrapper.show();
+			this.set_sidebar_for_page();
 		}
 	}
 	make_dom() {
@@ -365,17 +334,13 @@ frappe.ui.Sidebar = class Sidebar {
 		this.wrapper = $(
 			frappe.render_template("sidebar", {
 				expanded: this.sidebar_expanded,
-				avatar: frappe.avatar(frappe.session.user, "avatar-medium-2"),
+				avatar: frappe.avatar(frappe.session.user, "avatar-medium"),
 				navbar_settings: frappe.boot.navbar_settings,
 			})
 		).prependTo("body");
 		this.$sidebar = this.wrapper.find(".sidebar-items");
 
 		this.wrapper.find(".body-sidebar .sidebar-resize-handle").on("click", () => {
-			this.toggle_width();
-		});
-
-		this.wrapper.find(".body-sidebar .collapse-sidebar-link").on("click", () => {
 			this.toggle_width();
 		});
 
@@ -467,7 +432,6 @@ frappe.ui.Sidebar = class Sidebar {
 	}
 	make_sidebar() {
 		this.empty();
-		this.wrapper.find(".collapse-sidebar-link").removeClass("hidden");
 		if (this.editor.edit_mode) {
 			this.create_sidebar(this.editor.new_sidebar_items);
 		} else {
@@ -486,14 +450,15 @@ frappe.ui.Sidebar = class Sidebar {
 		this.empty();
 		if (items && items.length > 0) {
 			items.forEach((w) => {
-				this.add_item(this.$items_container, w);
+				if (!w.display_depends_on || frappe.utils.eval(w.display_depends_on)) {
+					this.add_item(this.$items_container, w);
+				}
 			});
 		} else {
 			let no_items_message = $(
 				"<div class='flex' style='padding: 30px'> No Sidebar Items </div>"
 			);
 			this.wrapper.find(".sidebar-items").append(no_items_message);
-			this.wrapper.find(".collapse-sidebar-link").addClass("hidden");
 		}
 		if (this.edit_mode) {
 			$(".edit-menu").removeClass("hidden");
@@ -535,6 +500,14 @@ frappe.ui.Sidebar = class Sidebar {
 		this.setup_awesomebar();
 		this.setup_notifications();
 		this.standard_items_setup = true;
+	}
+	get_workspace_for_module(module) {
+		for (let i = 0; i < frappe.boot.workspaces.pages.length; i++) {
+			const workspace = frappe.boot.workspaces.pages[i];
+			if (workspace.module == module && !workspace.parent_page) {
+				return workspace.name;
+			}
+		}
 	}
 	setup_awesomebar() {
 		if (frappe.boot.desk_settings.search_bar) {
@@ -583,13 +556,10 @@ frappe.ui.Sidebar = class Sidebar {
 	}
 
 	expand_sidebar() {
-		const is_rtl = frappe.utils.is_rtl();
 		if (this.sidebar_expanded) {
 			this.wrapper.addClass("expanded");
 			$('[data-toggle="tooltip"]').tooltip("dispose");
 			this.wrapper.find(".avatar-name-email").show();
-			this.wrapper.find(".onboarding-sidebar span").show();
-			this.wrapper.find(".promotional-banner-title").show();
 		} else {
 			this.wrapper.removeClass("expanded");
 			$('[data-toggle="tooltip"]').tooltip({
@@ -598,22 +568,9 @@ frappe.ui.Sidebar = class Sidebar {
 				trigger: "hover",
 			});
 			this.wrapper.find(".avatar-name-email").hide();
-			this.wrapper.find(".onboarding-sidebar span").hide();
-			this.wrapper.find(".promotional-banner-title").hide();
 		}
 
 		localStorage.setItem("sidebar-expanded", this.sidebar_expanded);
-		const chevron_icon = this.sidebar_expanded
-			? is_rtl
-				? "chevron-right"
-				: "chevron-left"
-			: is_rtl
-			? "chevron-left"
-			: "chevron-right";
-		this.wrapper
-			.find(".body-sidebar .collapse-sidebar-link")
-			.find("use")
-			.attr("href", `#icon-${chevron_icon}`);
 		this.sidebar_header.toggle_width(this.sidebar_expanded);
 		$(document).trigger("sidebar-expand", {
 			sidebar_expand: this.sidebar_expanded,
@@ -659,179 +616,126 @@ frappe.ui.Sidebar = class Sidebar {
 
 	set_workspace_sidebar(router) {
 		try {
-			const route = frappe.get_route();
-			let target;
+			let route = frappe.get_route();
+			let view, entity_name;
+			switch (route.length) {
+				case 1:
+					view = "Page";
+					entity_name = route[0];
+					break;
+				case 2:
+					view = route[0];
+					entity_name = route[1];
 
-			if (route.length === 2 && frappe.boot.workspace_sidebar_item[route[1].toLowerCase()]) {
-				// route points directly at a workspace, e.g. List/<Workspace>
-				target = route[1];
-			} else {
-				const entity = this.entity_from_route(route);
-				const module = router?.meta?.module;
-				target = this.resolve_sidebar(entity, module, route);
+					if (frappe.boot.workspace_sidebar_item[entity_name.toLowerCase()]) {
+						frappe.app.sidebar.setup(entity_name);
+						return;
+					}
+					break;
+				case 3:
+					view = route[0];
+					entity_name = route[1];
+					if (route[0] == "Workspaces" && route[1] == "private") {
+						entity_name = route[2];
+					}
+					break;
+				default:
+					entity_name = route[1];
 			}
-
-			// only rebuild when the target differs from the current sidebar, so
-			// this stays a cheap no-op when re-run by page-change / form-refresh
-			if (target && target !== this.sidebar_title) {
-				frappe.app.sidebar.setup(target);
+			let sidebars = this.get_workspace_sidebars(entity_name);
+			this.preferred_sidebars = sidebars;
+			let module = router?.meta?.module;
+			if (this.sidebar_title && sidebars.includes(this.sidebar_title)) {
+				this.set_active_workspace_item();
+				return;
+			}
+			if (module) {
+				sidebars = this.filter_sidebars_from_app(
+					sidebars,
+					frappe.boot.module_app[module.toLowerCase().replace(/[ -]/g, "_")]
+				);
+			}
+			if (sidebars.length == 1) {
+				frappe.app.sidebar.setup(sidebars[0]);
+			} else if (sidebars.length > 1) {
+				let sidebar = this.get_workspace_for_module(module);
+				if (sidebars.includes(this.get_workspace_for_module(module))) {
+					frappe.app.sidebar.setup(sidebar);
+				}
+			} else if (module) {
+				this.show_sidebar_for_module(module);
 			}
 		} catch (e) {
-			console.error(e);
+			console.log(e);
 		}
 
 		this.set_active_workspace_item();
 	}
-
-	entity_from_route(route) {
-		switch (route.length) {
-			case 1:
-				return route[0];
-			case 3:
-				return route[0] === "Workspaces" && route[1] === "private" ? route[2] : route[1];
-			case 2:
-				// view-type routes like ["List", "Customer"] or
-				// ["query-report", "Balance Sheet"] -> entity is the second element
-				return route[1];
-			default:
-				return route[1];
-		}
-	}
-
-	// Pick which workspace sidebar to show for the current route.
-	// Returns a workspace title (or null). Rules are ordered by priority:
-	// the first one that yields a sidebar wins.
-	resolve_sidebar(entity, module, route = []) {
-		let candidates = this.get_workspace_sidebars(entity);
-		this.preferred_sidebars = candidates;
-
-		const remembered = JSON.parse(localStorage.getItem("sidebar_item_map") || "{}");
-
-		let sidebar_name = null;
-
-		if (this.sidebar_title && candidates.includes(this.sidebar_title)) {
-			// 1. current sidebar already links to this entity -> keep it
-			sidebar_name = this.sidebar_title;
-		} else if (remembered[entity]?.length) {
-			// 2. previously remembered choice for this entity
-			sidebar_name = remembered[entity][0];
-		} else {
-			// 3. narrow candidates to the active app
-			if (module) {
-				candidates = this.filter_sidebars_from_app(
-					candidates,
-					frappe.boot.module_app[module.toLowerCase().replace(/[ -]/g, "_")]
-				);
-			}
-
-			// 4. resolve by what is left
-			if (candidates.length === 1) {
-				sidebar_name = candidates[0];
-			} else if (candidates.length > 1) {
-				sidebar_name =
-					this.get_preferred_sidebar(candidates, module, entity, route) ||
-					candidates.find((c) => c.toLowerCase() === module?.toLowerCase());
-			} else if (module) {
-				if (this.is_employee_context(entity, module, route)) {
-					sidebar_name = this.get_existing_hr_sidebar() || this.resolve_module_sidebar(module);
-				} else {
-					sidebar_name = this.resolve_module_sidebar(module);
-				}
-			}
-		}
-		if (!sidebar_name && candidates.length > 0) {
-			sidebar_name = candidates[0];
-		}
-		return sidebar_name;
-	}
 	filter_sidebars_from_app(sidebars, app) {
 		let filter_sidebars = [];
 		sidebars.forEach((sidebar) => {
-			const config = frappe.boot.workspace_sidebar_item[sidebar.toLowerCase()];
-			if (config && config.app === app && !filter_sidebars.includes(sidebar)) {
+			if (
+				!filter_sidebars.includes(sidebar) &&
+				frappe.boot.workspace_sidebar_item[sidebar.toLowerCase()].app === app
+			) {
 				filter_sidebars.push(sidebar);
 			}
 		});
 		return filter_sidebars;
-	}
-	// Public entry point used by page/report views to switch the sidebar
-	// to the one for a module. Resolution itself lives in resolve_module_sidebar.
-	get_preferred_sidebar(sidebars, module, entity_name, route) {
-		const hr_sidebar = this.get_existing_hr_sidebar();
-		if (this.is_employee_context(entity_name, module, route) && hr_sidebar && sidebars.includes(hr_sidebar)) {
-			return hr_sidebar;
-		}
-
-		const module_sidebar = this.get_workspace_for_module(module);
-		if (module_sidebar && sidebars.includes(module_sidebar)) {
-			return module_sidebar;
-		}
-
-		return sidebars[0];
-	}
-	get_existing_hr_sidebar() {
-		const candidates = ["HR Setup", "Human Resources"];
-		return candidates.find((sidebar) => frappe.boot.workspace_sidebar_item[sidebar.toLowerCase()]);
-	}
-	is_employee_context(entity_name, module, route) {
-		const employee_links = new Set([
-			"employee",
-			"job family",
-			"job grade",
-			"individual development plan",
-			"employee checkin",
-			"leave application",
-			"appraisal",
-		]);
-		const normalized_entity = (entity_name || "").toString().toLowerCase();
-		const normalized_module = (module || "").toString().toLowerCase();
-
-		if (employee_links.has(normalized_entity)) return true;
-		if (normalized_module.includes("human resource") || normalized_module === "hr") return true;
-
-		return false;
 	}
 	show_sidebar_for_module(module) {
 		if (this.sidebar_title && this.preferred_sidebars.includes(this.sidebar_title)) {
 			this.set_active_workspace_item();
 			return;
 		}
-		const target = this.resolve_module_sidebar(module);
-		if (target) frappe.app.sidebar.setup(target);
+		if (this.sidebar_fixes && this.sidebar_title != module) return;
+		let workspace_name = this.get_workspace_for_module(module);
+		if (frappe.boot.workspace_sidebar_item[module.toLowerCase()]) {
+			frappe.app.sidebar.setup(module);
+		} else if (
+			workspace_name &&
+			frappe.boot.workspace_sidebar_item[workspace_name.toLowerCase()]
+		) {
+			frappe.app.sidebar.setup(workspace_name);
+		} else {
+			let sidebars =
+				this.sidebar_module_map[module] &&
+				this.sidebar_module_map[module].sort((a, b) => {
+					return a.localeCompare(b);
+				});
+			if (frappe.get_route())
+				if (sidebars && sidebars.length) {
+					frappe.app.sidebar.setup(sidebars[0]);
+				}
+		}
 	}
-	resolve_module_sidebar(module) {
-		return frappe.boot.workspace_sidebar_item[module.toLowerCase()] ? module : null;
+	set_sidebar_for_page() {
+		let route = frappe.get_route();
+		let views = ["List", "Form", "Workspaces", "query-report"];
+		let matches = views.some((view) => route.includes(view));
+		if (matches) return;
+		let workspace_title;
+		if (route.length == 2) {
+			workspace_title = this.get_workspace_sidebars(route[1]);
+		} else {
+			workspace_title = this.get_workspace_sidebars(route[0]);
+		}
+		let module_name = workspace_title[0];
+		if (module_name) {
+			frappe.app.sidebar.setup(module_name || this.sidebar_title);
+		}
 	}
 
 	get_workspace_sidebars(link_to) {
 		let sidebars = [];
-		const target = (link_to || "").toString().toLowerCase();
 		Object.entries(this.all_sidebar_items).forEach(([name, sidebar]) => {
 			const { items, label } = sidebar;
 			items.forEach((item) => {
-				if ((item.link_to || "").toString().toLowerCase() === target) {
+				if (item.link_to === link_to) {
 					sidebars.push(label || name);
 				}
 			});
 		});
 		return sidebars;
-	}
-	setup_reload() {
-		const me = this;
-		this.item_sidebar_map = {};
-		$(window).on("beforeunload", function () {
-			me.store_last_show_sidebar_for_item();
-		});
-	}
-	store_last_show_sidebar_for_item() {
-		const me = this;
-		if (frappe.app.sidebar.active_item) {
-			let active_item = frappe.app.sidebar.active_item.parent().data("id");
-			if (!me.item_sidebar_map[active_item]) {
-				me.item_sidebar_map[active_item] = [];
-			}
-			me.item_sidebar_map[active_item].push(me.sidebar_title);
-			localStorage.setItem("sidebar_item_map", JSON.stringify(me.item_sidebar_map));
-		}
 	}
 };

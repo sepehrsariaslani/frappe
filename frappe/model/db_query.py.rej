@@ -1,0 +1,21 @@
+@@ -444,6 +450,9 @@
+ 
+ 			if isinstance(filters, dict):
+ 				fdict = filters
++				# Remove project.archived_at filter for GP Pinned Project - handled in get_list_query
++				if self.doctype == "GP Pinned Project" and "project.archived_at" in fdict:
++					fdict = {k: v for k, v in fdict.items() if k != "project.archived_at"}
+ 				filters = [make_filter_tuple(self.doctype, key, value) for key, value in fdict.items()]
+ 			setattr(self, filter_name, filters)
+ 
+@@ -686,6 +727,10 @@
+ 		permitted_child_table_fields = {}
+ 
+ 		for i, field in enumerate(self.fields):
++			# Skip dictionary fields (nested child tables) - they are handled separately
++			if isinstance(field, dict):
++				continue
++			
+ 			# field: 'count(distinct `tabPhoto`.name) as total_count'
+ 			# column: 'tabPhoto.name'
+ 			# field: 'count(`tabPhoto`.name) as total_count'

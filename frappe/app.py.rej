@@ -1,0 +1,31 @@
+@@ -32,6 +34,7 @@
+ 
+ _site = None
+ _sites_path = os.environ.get("SITES_PATH", ".")
++_statics_applied = False
+ 
+ 
+ # If gc.freeze is done then importing modules before forking allows us to share the memory
+@@ -519,13 +539,21 @@
+ 
+ 
+ def application_with_statics():
+-	global application, _sites_path
++	global application, _sites_path, _statics_applied
+ 
++	if _statics_applied:
++		return application
++
+ 	application = SharedDataMiddleware(application, {"/assets": str(os.path.join(_sites_path, "assets"))})
+ 
+ 	application = StaticDataMiddleware(application, {"/files": str(os.path.abspath(_sites_path))})
++	_statics_applied = True
+ 
+ 	return application
++
++
++if not os.environ.get("NO_STATICS"):
++	application_with_statics()
+ 
+ 
+ # Remove references to pattern that are pre-compiled and loaded to global scopes.

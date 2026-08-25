@@ -24,7 +24,7 @@ from frappe.model import OPTIONAL_FIELDS, get_permitted_fields
 from frappe.model.base_document import DOCTYPES_FOR_DOCTYPE
 from frappe.model.document import Document
 from frappe.query_builder import Criterion, Field, Order, functions
-from frappe.query_builder.custom import Month, MonthName, Quarter, Year
+from frappe.query_builder.custom import Month, MonthName, Quarter
 
 CORE_DOCTYPES = DOCTYPES_FOR_DOCTYPE | frozenset(
 	(
@@ -172,9 +172,6 @@ BACKTICK_FIELD_PARSE_REGEX = re.compile(r"^`tab([\w\s-]+)`\.(`?)(\w+)\2$")
 # Group 3: Fieldname
 CHILD_TABLE_FIELD_PATTERN = re.compile(r'^[`"]?tab([\w\s]+)[`"]?\.([`"]?)(\w+)\2$')
 
-# Maximum value of an unsigned 64-bit integer
-MAX_LIMIT = 18446744073709551615
-
 # Direct mapping from uppercase function names to pypika function classes
 FUNCTION_MAPPING = {
 	"COUNT": functions.Count,
@@ -193,7 +190,6 @@ FUNCTION_MAPPING = {
 	"MONTHNAME": MonthName,
 	"QUARTER": Quarter,
 	"MONTH": Month,
-	"YEAR": Year,
 }
 
 # Functions that accept '*' as an argument (e.g., COUNT(*))
@@ -301,11 +297,6 @@ class Engine:
 		if offset:
 			if not isinstance(offset, int) or offset < 0:
 				frappe.throw(_("Offset must be a non-negative integer"), TypeError)
-
-			# In MariaDB and SQLite, offset requires limit
-			if not self.is_postgres and not limit:
-				self.query = self.query.limit(MAX_LIMIT)
-
 			self.query = self.query.offset(offset)
 
 		if distinct:
@@ -616,17 +607,15 @@ class Engine:
 			# If _field is from a dynamic field, its name might be just the target fieldname.
 			# We need the original string ('link.target') or the fieldname from the main doctype.
 			original_field_name = field if isinstance(field, str) else _field.name
-			# When the filter targets a child table, resolve the field against
-			# the child doctype rather than the parent.
-			lookup_doctype = doctype or self.doctype
-			lookup_meta = frappe.get_meta(lookup_doctype)
-			if lookup_meta.has_field(original_field_name):
-				_df = lookup_meta.get_field(original_field_name)
-				ref_doctype = _df.options if _df else lookup_doctype
+			# Check if the original field name exists in the *main* doctype meta
+			main_meta = frappe.get_meta(self.doctype)
+			if main_meta.has_field(original_field_name):
+				_df = main_meta.get_field(original_field_name)
+				ref_doctype = _df.options if _df else self.doctype
 			else:
-				# If not in lookup doctype, assume it's a standard field like 'name' or refers to the lookup doctype itself
+				# If not in main doctype, assume it's a standard field like 'name' or refers to the main doctype itself
 				# This part might need refinement if nested set operators are used with dynamic fields.
-				ref_doctype = lookup_doctype
+				ref_doctype = self.doctype
 
 			nodes = get_nested_set_hierarchy_result(ref_doctype, docname, hierarchy)
 			operator_fn = (
@@ -1368,9 +1357,8 @@ class Engine:
 
 	def _raise_permission_error(self, doctype=None):
 		frappe.throw(
-			title=_("Permission Error"),
-			msg=_("Insufficient Permission for {0}").format(frappe.bold(doctype or self.doctype)),
-			exc=frappe.PermissionError,
+			_("Insufficient Permission for {0}").format(frappe.bold(doctype or self.doctype)),
+			frappe.PermissionError,
 		)
 
 	def apply_field_permissions(self):
@@ -1690,7 +1678,6 @@ class Engine:
 			if not user_permissions:
 				return match_filters
 
-			permission_filters = {}
 			for df in self.get_doctype_link_fields(self.doctype):
 				if df.get("ignore_user_permissions"):
 					continue
@@ -1714,10 +1701,7 @@ class Engine:
 							docs.append(doc)
 
 					if docs:
-						permission_filters[options] = docs
-
-			if permission_filters:
-				match_filters.append(permission_filters)
+						match_filters.append({options: docs})
 
 			return match_filters
 

@@ -53,8 +53,6 @@ def get_list():
 @frappe.whitelist()
 @frappe.read_only()
 def get_count() -> int | None:
-	from frappe.query_builder.functions import Count
-
 	args = get_form_params()
 
 	if is_virtual_doctype(args.doctype):
@@ -66,24 +64,23 @@ def get_count() -> int | None:
 	fieldname = f"`tab{args.doctype}`.name"
 	args.order_by = None
 
-	args.fields = [fieldname]
-	partial_query = execute(**args, run=0)
-	count_query = frappe.qb.from_(partial_query).select(Count("*"))
-
 	# args.limit is specified to avoid getting accurate count.
 	if not args.limit:
-		return count_query.run()[0][0]
+		args.fields = [fieldname]
+		partial_query = execute(**args, run=0).get_sql()
+		return frappe.db.sql(f"select count(*) from ( {partial_query} ) p")[0][0]
 
-	count_sql, count_params = count_query.walk()
+	args.fields = [fieldname]
+	partial_query = execute(**args, run=0)
 
 	# Count queries are notoriously unpredictable based on the type of filters used.
 	# We should not attempt to fetch accurate count for 2 entire minutes! (default timeout)
 	# Very short timeout is used to here to set an upper bound on damage a bad request can do.
 	# Users can request accurate count by dropping limit from arguments.
-	timeout_clause = "SET STATEMENT max_statement_time=1 FOR " if frappe.db.db_type == "mariadb" else ""
+	timeout_clause = "SET STATEMENT max_statement_time=1 FOR" if frappe.db.db_type == "mariadb" else ""
 
 	try:
-		count = frappe.db.sql(timeout_clause + count_sql, count_params)[0][0]
+		count = frappe.db.sql(f"{timeout_clause} select count(*) from ( {partial_query} ) p")[0][0]
 	except Exception as e:
 		if frappe.db.is_statement_timeout(e):  # Skip fetching accurate count
 			count = None
@@ -353,13 +350,6 @@ def save_report(name, doctype, report_settings):
 		if report.owner != frappe.session.user and not report.has_permission("write"):
 			frappe.throw(_("Insufficient Permissions for editing Report"), frappe.PermissionError)
 	else:
-		if not frappe.has_permission("Report", "create"):
-			frappe.throw(_("You don't have permission to create Report records."), frappe.PermissionError)
-		if not frappe.has_permission(doctype, "read"):
-			frappe.throw(
-				_("You don't have permission to create report for {0}").format(_(doctype)),
-				frappe.PermissionError,
-			)
 		report = frappe.new_doc("Report")
 		report.report_name = name
 		report.ref_doctype = doctype
@@ -441,14 +431,13 @@ def run_report_view_export_job(user_email, form_params, csv_params):
 
 def _export_query(form_params, csv_params, populate_response=True):
 	from frappe.desk.utils import get_csv_bytes, provide_binary_file
-	from frappe.utils.xlsxutils import get_default_xlsx_styles, handle_html, make_xlsx
+	from frappe.utils.xlsxutils import handle_html, make_xlsx
 
 	doctype = form_params.pop("doctype")
-	owner_field = f"`tab{doctype}`.`owner`"
 	if isinstance(form_params["fields"], list):
-		form_params["fields"].append(owner_field)
+		form_params["fields"].append("owner")
 	elif isinstance(form_params["fields"], tuple):
-		form_params["fields"] = form_params["fields"] + (owner_field,)
+		form_params["fields"] = form_params["fields"] + ("owner",)
 	file_format_type = form_params.pop("file_format_type")
 	title = form_params.pop("title", doctype)
 	add_totals_row = 1 if form_params.pop("add_totals_row", None) == "1" else None
@@ -483,8 +472,7 @@ def _export_query(form_params, csv_params, populate_response=True):
 	fields_info = get_field_info(db_query.fields, doctype)
 
 	labels = [info["label"] for info in fields_info]
-	sr_label = _("Sr")
-	data = [[sr_label, *labels]]
+	data = [[_("Sr"), *labels]]
 	processed_data = []
 
 	if frappe.local.lang == "en" or not translate_values:
@@ -509,21 +497,7 @@ def _export_query(form_params, csv_params, populate_response=True):
 		)
 	elif file_format_type == "Excel":
 		file_extension = "xlsx"
-
-		styles = get_default_xlsx_styles(
-			columns=[
-				{
-					"fieldname": "sr",
-					"label": sr_label,
-					"fieldtype": "Int",
-				},
-				*fields_info,
-			],
-			data=data[1:],  # exclude header row
-			has_total_row=bool(add_totals_row),
-		)
-
-		content = make_xlsx(data, doctype, styles=styles).getvalue()
+		content = make_xlsx(data, doctype).getvalue()
 
 	if not populate_response:
 		return title, file_extension, content
@@ -551,91 +525,69 @@ def append_totals_row(data):
 	return data
 
 
-def get_field_info(fields, parent_doctype):
-	"""
-	Get field's
-		- fieldname
-		- label
-		- fieldtype
-		- translatable
-		- options (if any)
-
-	:param fields: List of field names (can include child table fields and aggregate functions).
-	:param parent_doctype: The main doctype from which the report is generated.
-	"""
-	from frappe.model.meta import get_default_df
+def get_field_info(fields, doctype):
+	"""Get column names, labels, field types, and translatable properties based on column names."""
 
 	field_info = []
-
-	for field in fields:
+	for key in fields:
 		df = None
-		doctype = None
 		try:
-			doctype, fieldname = parse_field(field)
+			parenttype, fieldname = parse_field(key)
 		except ValueError:
 			# handles aggregate functions
-			if isinstance(field, dict):
-				# Eg: {"COUNT": "name", "as": "count_name"} -> "COUNT"
-				fieldname = next(f for f in field if f != "as")
+			parenttype = doctype
+			if isinstance(key, dict):
+				fieldname = next(k for k in key if k != "as")
 			else:
-				# Eg: "count(name)" -> "count"
-				fieldname = field.split("(", 1)[0]
+				fieldname = key.split("(", 1)[0]
 			fieldname = fieldname.capitalize()
 
-		doctype = doctype or parent_doctype
-		options = None
+		parenttype = parenttype or doctype
 
-		# Special-case the primary `name` column on the parent doctype
-		if doctype == parent_doctype and fieldname == "name":
+		if parenttype == doctype and fieldname == "name":
+			name = fieldname
 			label = _("ID", context="Label of name column in report")
 			fieldtype = "Data"
 			translatable = True
 		else:
-			meta = frappe.get_meta(doctype)
-			meta_df = meta.get_field(fieldname)
-			df = meta_df or get_default_df(fieldname)
-
-			if df:
-				fieldname = df.fieldname
-				label = _(df.label or "") if meta_df else meta.get_label(fieldname)
+			df = frappe.get_meta(parenttype).get_field(fieldname)
+			if df and df.fieldtype in ("Data", "Select", "Small Text", "Text"):
+				name = df.name
+				label = _(df.label)
 				fieldtype = df.fieldtype
-				translatable = df.translatable or False
-				options = df.options
-
-				if df.fieldtype == "Link" and options and frappe.get_meta(options).translated_doctype:
-					translatable = True
+				translatable = getattr(df, "translatable", False)
+			elif df and df.fieldtype == "Link" and frappe.get_meta(df.options).translated_doctype:
+				name = df.name
+				label = _(df.label)
+				fieldtype = df.fieldtype
+				translatable = True
 			else:
-				label = _(frappe.unscrub(fieldname))
+				name = fieldname
+				label = _(df.label) if df else _(fieldname)
 				fieldtype = "Data"
 				translatable = False
 
-			if doctype != parent_doctype:
+			if parenttype != doctype:
 				# If the column is from a child table, append the child doctype.
 				# For example, "Item Code (Sales Invoice Item)".
-				label += f" ({_(doctype)})"
+				label += f" ({_(parenttype)})"
 
 		field_info.append(
-			{
-				"fieldname": fieldname,
-				"label": label,
-				"fieldtype": fieldtype,
-				"translatable": translatable,
-				"options": options,
-			}
+			{"name": name, "label": label, "fieldtype": fieldtype, "translatable": translatable}
 		)
 
 	return field_info
 
 
-def handle_duration_fieldtype_values(parent_doctype, data, fields):
+def handle_duration_fieldtype_values(doctype, data, fields):
 	for field in fields:
 		try:
-			doctype, fieldname = parse_field(field)
+			parenttype, fieldname = parse_field(field)
 		except ValueError:
 			continue
 
-		doctype = doctype or parent_doctype
-		df = frappe.get_meta(doctype).get_field(fieldname)
+		parenttype = parenttype or doctype
+		df = frappe.get_meta(parenttype).get_field(fieldname)
 
 		if df and df.fieldtype == "Duration":
 			index = fields.index(field) + 1
@@ -648,14 +600,7 @@ def handle_duration_fieldtype_values(parent_doctype, data, fields):
 
 
 def parse_field(field: str | dict) -> tuple[str | None, str]:
-	"""
-	Parse a field into doctype and fieldname.
-
-	:param field: The field string to parse.
-	:returns: A tuple of (doctype, fieldname). Doctype is None if not specified.
-
-	:raises ValueError: If the field contains aggregate functions.
-	"""
+	"""Parse a field into parenttype and fieldname."""
 	if isinstance(field, dict):  # for aggregates via qb
 		raise ValueError
 

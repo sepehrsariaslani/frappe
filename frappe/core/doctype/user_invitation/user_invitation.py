@@ -39,7 +39,9 @@ class UserInvitation(Document):
 		self._after_insert()
 
 	def accept(self, ignore_permissions: bool = False):
-		self._accept()
+		accepted_now = self._accept()
+		if not accepted_now:
+			return
 		user, user_inserted = self._upsert_user(ignore_permissions)
 		self.save(ignore_permissions)
 		user.save(ignore_permissions)
@@ -118,7 +120,7 @@ class UserInvitation(Document):
 
 	def _accept(self):
 		if self.status == "Accepted":
-			frappe.throw(title=_("Error"), msg=_("Invitation already accepted"))
+			return False
 		if self.status == "Expired":
 			frappe.throw(title=_("Error"), msg=_("Invitation is expired"))
 		if self.status == "Cancelled":
@@ -126,7 +128,6 @@ class UserInvitation(Document):
 		self.status = "Accepted"
 		self.accepted_at = frappe.utils.now()
 		self.user = self.email
-		self.key = None
 		return True
 
 	def _upsert_user(self, ignore_permissions: bool = False):

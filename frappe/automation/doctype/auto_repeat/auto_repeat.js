@@ -14,7 +14,6 @@ frappe.ui.form.on("Auto Repeat", {
 			return {
 				filters: {
 					auto_repeat: "",
-					docstatus: ["!=", 2],
 				},
 			};
 		};

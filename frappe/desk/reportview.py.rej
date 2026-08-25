@@ -1,0 +1,21 @@
+@@ -107,6 +107,10 @@
+ 	wildcard = update_wildcard_field_param(data)
+ 
+ 	for field in list(data.fields or []):
++		# Skip dictionary fields (nested child tables) - they are handled by ChildQuery
++		if isinstance(field, dict):
++			continue
++		
+ 		fieldname = extract_fieldnames(field)[0]
+ 		if not fieldname:
+ 			raise_invalid_field(fieldname)
+@@ -191,7 +195,8 @@
+ 
+ 
+ @lru_cache
+-def extract_fieldnames(field):
++def _extract_fieldnames_cached(field):
++	"""Internal cached function for extract_fieldnames - only handles strings"""
+ 	from frappe.database.schema import SPECIAL_CHAR_PATTERN
+ 
+ 	if not SPECIAL_CHAR_PATTERN.findall(field):

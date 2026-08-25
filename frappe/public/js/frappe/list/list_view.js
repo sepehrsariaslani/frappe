@@ -297,31 +297,12 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 				},
 				"add"
 			);
-			frappe.ui.keys.add_shortcut({
-				shortcut: "ctrl+b",
-				action: () => {
-					if (this.settings.primary_action) {
-						this.settings.primary_action();
-					} else {
-						this.make_new_doc();
-					}
-
-					return true;
-				},
-				description: __(
-					"Create a new document",
-					null,
-					"Description of a list view shortcut"
-				),
-				page: this.page,
-			});
 			if (frappe.is_mobile()) {
 				create_button.append(__("Add"));
 			} else {
 				this._trim_primary_action_if_overflow(create_button, add_button_label);
 			}
 		} else {
-			frappe.ui.keys.off("ctrl+b", this.page);
 			this.page.clear_primary_action();
 		}
 	}
@@ -1106,12 +1087,11 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 
 		// if no scroll then remove borders
 		let list_row = this.$result.find(".list-row-container .list-row").first();
-		let frappe_list_width = this.$frappe_list.width();
-		let left_width = list_row.find(".level-left").first().width();
-		let right_width = list_row.find(".level-right").first().width();
+		let result_container_width = this.$result.width();
+		let left_width = list_row.find(".level-left").width();
+		let right_width = list_row.find(".level-right").width();
 
-		// if listview is not scrollable then hide border
-		if (left_width < frappe_list_width - right_width) {
+		if (result_container_width - right_width > left_width) {
 			this.$result.find(".list-row-container .list-row .level-right").addClass("border-0");
 		}
 	}
@@ -2003,8 +1983,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 
 		if (
 			frappe.model.can_create("Custom Field") &&
-			frappe.model.can_create("Property Setter") &&
-			!frappe.model.core_doctypes_list.includes(doctype)
+			frappe.model.can_create("Property Setter")
 		) {
 			items.push({
 				label: __("Customize", null, "Button in list view menu"),
@@ -2248,14 +2227,21 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			return {
 				label: __("Clear Assignment", null, "Button in list view actions menu"),
 				action: () => {
-					frappe.confirm(__("Are you sure you want to clear the assignments?"), () => {
-						this.disable_list_update = true;
-						bulk_operations.clear_assignment(this.get_checked_items(true), () => {
-							this.disable_list_update = false;
+					frappe.confirm(
+						__("Are you sure you want to clear the assignments?"),
+						() => {
+							this.disable_list_update = true;
+							bulk_operations.clear_assignment(this.get_checked_items(true), () => {
+								this.disable_list_update = false;
+								this.clear_checked_items();
+								this.refresh();
+							});
+						},
+						() => {
 							this.clear_checked_items();
 							this.refresh();
-						});
-					});
+						}
+					);
 				},
 				standard: true,
 			};
@@ -2420,7 +2406,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 					this.disable_list_update = true;
 					bulk_operations.edit(this.get_checked_items(true), field_mappings, () => {
 						this.disable_list_update = false;
-						this.clear_checked_items();
 						this.refresh();
 					});
 				},
@@ -2668,9 +2653,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 					});
 				} else if (Array.isArray(value)) {
 					filters.push([doctype, field, value[0], value[1]]);
-				} else if (["_assign", "_liked_by"].includes(field)) {
-					// stored as a JSON array, so an exact match can never hit
-					filters.push([doctype, field, "like", `%${value}%`]);
 				} else {
 					filters.push([doctype, field, "=", value]);
 				}

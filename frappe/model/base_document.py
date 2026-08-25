@@ -513,17 +513,9 @@ class BaseDocument:
 		d = _dict()
 		field_values = self.__dict__
 		field_map = self.meta._fields
-		masked_fieldnames = self.flags.get("masked_fieldnames")
 
 		for fieldname in self.meta.get_valid_fields():
 			value = field_values.get(fieldname)
-
-			# Masked fields hold the XXXXXXXX placeholder; pass it through untouched so it is not
-			# cast back to 0 for numeric fieldtypes. Only truthy values get masked, so falsy ones
-			# fall through to the normal null-aware path.
-			if value and fieldname in (masked_fieldnames or ()):
-				d[fieldname] = value
-				continue
 
 			# if no need for sanitization and value is None, continue
 			if not sanitize and value is None:
@@ -559,9 +551,6 @@ class BaseDocument:
 
 				elif fieldtype in float_like_fields and not isinstance(value, float):
 					value = flt(value)
-
-				elif fieldtype == "Read Only" and not isinstance(value, str):
-					value = cstr(value)
 
 				elif (fieldtype in datetime_fields and value == "") or (
 					getattr(df, "unique", False) and cstr(value).strip() == ""
@@ -629,7 +618,7 @@ class BaseDocument:
 		return valid_columns_cache[self.doctype]
 
 	def is_new(self) -> bool:
-		return bool(self.get("__islocal"))
+		return self.get("__islocal")
 
 	@property
 	def docstatus(self) -> DocStatus:
@@ -1584,9 +1573,7 @@ def _filter(data, filters, limit=None):
 	return out
 
 
-CACHED_PROPERTIES = tuple(
-	prop for prop, value in vars(BaseDocument).items() if isinstance(value, cached_property)
-)
+CACHED_PROPERTIES = (prop for prop, value in vars(BaseDocument).items() if isinstance(value, cached_property))
 
 UNPICKLABLE_KEYS = frozenset(
 	(

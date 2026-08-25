@@ -404,9 +404,6 @@ class EmailAccount(Document):
 
 	def check_email_server_connection(self, email_server, in_receive):
 		# tries to connect to email server and handles failure
-		# in_receive is also set during save validation; only a real background fetch
-		# should auto-disable the account, a failed save must surface the error
-		is_background_receive = in_receive and not bool(self.flags.validate_imap_pop_connection)
 		try:
 			email_server.connect()
 
@@ -427,7 +424,7 @@ class EmailAccount(Document):
 
 			all_error_codes = auth_error_codes + other_error_codes
 
-			if is_background_receive and any(t in message for t in all_error_codes):
+			if in_receive and any(map(lambda t: t in message, all_error_codes)):
 				# if called via self.receive and it leads to authentication error,
 				# disable incoming and send email to System Manager
 				error_message = _(
@@ -439,13 +436,13 @@ class EmailAccount(Document):
 				self.handle_incoming_connect_error(description=error_message)
 				return None
 
-			elif not is_background_receive and any(t in message for t in auth_error_codes):
+			elif not in_receive and any(map(lambda t: t in message, auth_error_codes)):
 				SMTPServer.throw_invalid_credentials_exception()
 			else:
 				frappe.throw(cstr(e))
 
 		except OSError:
-			if is_background_receive:
+			if in_receive:
 				# timeout while connecting, see receive.py connect method
 				description = frappe.message_log.pop() if frappe.message_log else "Socket Error"
 				self.db_set("no_failed", self.no_failed + 1)
@@ -1130,8 +1127,7 @@ def remove_user_email_inbox(email_account):
 
 
 @frappe.whitelist()
-def set_email_password(email_account: str, password: str):
-	frappe.has_permission("Email Account", "write", email_account, throw=True)
+def set_email_password(email_account, password):
 	account = frappe.get_doc("Email Account", email_account)
 	if account.awaiting_password and account.auth_method != "OAuth":
 		account.awaiting_password = 0

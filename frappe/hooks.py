@@ -270,7 +270,6 @@ scheduler_events = {
 		"frappe.automation.doctype.auto_repeat.auto_repeat.make_auto_repeat_entry",
 		"frappe.core.doctype.log_settings.log_settings.run_log_clean_up",
 		"frappe.core.doctype.user_invitation.user_invitation.mark_expired_invitations",
-		"frappe.core.doctype.duckdb_sync.duckdb_sync.cleanup_old_syncs",
 	],
 	"weekly_long": [
 		"frappe.desk.form.document_follow.send_weekly_updates",
@@ -532,8 +531,6 @@ persistent_cache_keys = [
 	"monitor-transactions",
 	"rate-limit-counter-*",
 	"rl:*",
-	"concurrency:*",
-	"pulse-client:*",
 ]
 
 user_invitation = {
@@ -549,6 +546,5 @@ add_to_apps_screen = [
 		"logo": app_logo_url,
 		"title": app_title,
 		"route": app_home,
-		"has_permission": "frappe.permissions.check_app_permission",
 	}
 ]

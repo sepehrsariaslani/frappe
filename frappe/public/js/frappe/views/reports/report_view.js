@@ -17,8 +17,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	setup_defaults() {
 		super.setup_defaults();
-		this.group_header_row_indices = [];
-		this.group_summary_row_indices = [];
 		if (!frappe.is_mobile()) {
 			this.page_title = __("Report:") + " " + this.page_title;
 		}
@@ -45,8 +43,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 				this.order_by = this.report_doc.json.order_by;
 				this.add_totals_row = this.report_doc.json.add_totals_row;
-				this.aggregate_summary_function =
-					this.report_doc.json.aggregate_summary_function || "sum";
 				this.page_title = __(this.report_name);
 				this.page_length = this.report_doc.json.page_length || 20;
 				this.order_by = this.report_doc.json.order_by || "creation desc";
@@ -54,8 +50,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 			});
 		} else {
 			this.add_totals_row = this.view_user_settings.add_totals_row || 0;
-			this.aggregate_summary_function =
-				this.view_user_settings.aggregate_summary_function || "sum";
 			this.chart_args = this.view_user_settings.chart_args;
 		}
 		return this.get_list_view_settings();
@@ -124,9 +118,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	get_args() {
 		const args = super.get_args();
-		// force-disable server-side SQL group by for Report View.
-		// Grouping is rendered client-side as collapsible rows.
-		args.group_by = null;
+		delete args.group_by;
 		this.group_by_control.set_args(args);
 
 		return args;
@@ -170,8 +162,8 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 			// update visible DOM elements and cell tooltip
 			document.querySelectorAll(`a[data-name="${key}"]`).forEach((el) => {
-				if (el.textContent === link_title) return;
-				el.textContent = link_title;
+				if (el.innerHTML === link_title) return;
+				el.innerHTML = link_title;
 
 				$(el).closest(".dt-cell__content").attr("title", link_title);
 			});
@@ -202,7 +194,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 			fields: this.fields,
 			order_by: this.sort_selector.get_sql_string(),
 			add_totals_row: this.add_totals_row,
-			aggregate_summary_function: this.aggregate_summary_function,
 			page_length: this.page_length,
 			column_widths: this.get_column_widths(),
 			group_by: this.group_by_control.get_settings(),
@@ -214,7 +205,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 			fields: this.report_doc.json.fields,
 			order_by: this.report_doc.json.order_by,
 			add_totals_row: this.report_doc.json.add_totals_row,
-			aggregate_summary_function: this.report_doc.json.aggregate_summary_function,
 			page_length: this.report_doc.json.page_length,
 			column_widths: this.report_doc.json.column_widths,
 			group_by: this.report_doc.json.group_by,
@@ -239,7 +229,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 				group_by: this.group_by_control.get_settings(),
 				chart_args: this.get_chart_settings(),
 				add_totals_row: this.add_totals_row,
-				aggregate_summary_function: this.aggregate_summary_function,
 			});
 		}
 	}
@@ -256,46 +245,21 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	render(force) {
-		const grouped_mode = this.is_collapsible_group_mode();
-		this.page.main.parent().toggleClass("report-view--grouped", grouped_mode);
 		if (this.data.length === 0) return;
 		this.render_count();
 		this.setup_columns();
 
 		if (this.group_by) {
-			this.destroy_chart_instance();
 			this.$charts_wrapper.addClass("hidden");
 		} else if (this.chart) {
 			this.refresh_charts();
-		} else if (this.chart_args) {
-			this.init_chart();
 		}
 
 		if (this.datatable && !force) {
-			const same_tree_mode = Boolean(this.datatable.options.treeView) === grouped_mode;
-			const same_checkbox_mode =
-				Boolean(this.datatable.options.checkboxColumn) === !grouped_mode;
-
-			if (same_tree_mode && same_checkbox_mode) {
-				this.datatable.refresh(this.get_data(this.data), this.columns);
-				frappe.report_utils.apply_saved_frozen_columns(
-					this.datatable,
-					this.report_name || this.page_title || this.doctype
-				);
-				this.apply_group_row_styles();
-				return;
-			}
-
-			this.datatable.destroy();
-			this.datatable = null;
-			this.$datatable_wrapper.empty();
-			this.setup_datatable(this.data);
-			this.apply_group_row_styles();
+			this.datatable.refresh(this.get_data(this.data), this.columns);
+			return;
 		}
-		if (!this.datatable) {
-			this.setup_datatable(this.data);
-			this.apply_group_row_styles();
-		}
+		this.setup_datatable(this.data);
 	}
 
 	get_count_element() {
@@ -372,19 +336,17 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	setup_datatable(values) {
 		this.$datatable_wrapper.empty();
-		const grouped_mode = this.is_collapsible_group_mode();
-		let datatable_options = {
+		this.datatable = new DataTable(this.$datatable_wrapper[0], {
 			columns: this.columns,
 			data: this.get_data(values),
 			getEditor: this.get_editing_object.bind(this),
 			language: frappe.boot.lang,
 			translations: frappe.utils.datatable.get_translations(),
-			checkboxColumn: !grouped_mode,
+			checkboxColumn: true,
 			inlineFilters: true,
 			noDataMessage: __("No matching entries in the current results"),
 			cellHeight: 35,
 			direction: frappe.utils.is_rtl() ? "rtl" : "ltr",
-			treeView: grouped_mode,
 			events: {
 				onRemoveColumn: (column) => {
 					this.remove_column_from_datatable(column);
@@ -472,21 +434,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 					},
 				},
 			],
-		};
-		datatable_options = frappe.report_utils.extend_datatable_options_with_freeze(
-			datatable_options,
-			{
-				report_name: this.report_name || this.page_title || this.doctype,
-				get_datatable: () => this.datatable,
-			}
-		);
-		this.datatable = new DataTable(this.$datatable_wrapper[0], {
-			...datatable_options,
 		});
-		frappe.report_utils.apply_saved_frozen_columns(
-			this.datatable,
-			this.report_name || this.page_title || this.doctype
-		);
 
 		this.setup_inline_filter_observer();
 	}
@@ -631,7 +579,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 					options: y_fields,
 					description: __("Showing only Numeric fields from Report"),
 					default: defaults.y_axes ? defaults.y_axes.join(", ") : null,
-					include_default: true,
 				},
 				{
 					label: __("Chart Type"),
@@ -686,8 +633,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	make_chart() {
-		this.destroy_chart_instance();
-
 		const args = this.chart_args;
 		let data = {
 			labels: args.labels,
@@ -741,22 +686,10 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	reset_chart_state() {
-		this.destroy_chart_instance();
+		this.chart = null;
 		this.chart_args = null;
 		this.$charts_wrapper.addClass("hidden");
 		this.save_view_user_settings({ chart_args: null });
-	}
-
-	destroy_chart_instance() {
-		if (this.chart?.destroy) {
-			try {
-				this.chart.destroy();
-			} catch (e) {
-				console.warn("Failed to destroy chart instance cleanly", e);
-			}
-		}
-		this.chart = null;
-		this.$charts_wrapper?.find?.(".charts-inner-wrapper")?.empty?.();
 	}
 
 	get_editing_object(colIndex, rowIndex, value, parent) {
@@ -765,16 +698,16 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 		control.df.change = () => control.set_focus();
 
-		const cell = this.datatable.getCell(colIndex, rowIndex);
-		const fieldname = this.datatable.getColumn(colIndex).docfield.fieldname;
-		const docname = cell.name;
-		const doctype = cell.doctype;
-
 		return {
 			initValue: (value) => {
 				return control.set_value(value);
 			},
 			setValue: (value) => {
+				const cell = this.datatable.getCell(colIndex, rowIndex);
+				let fieldname = this.datatable.getColumn(colIndex).docfield.fieldname;
+				let docname = cell.name;
+				let doctype = cell.doctype;
+
 				control.set_value(value);
 				return this.set_control_value(doctype, docname, fieldname, value)
 					.then((updated_doc) => {
@@ -807,12 +740,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 							} else {
 								_data[field] = updated_doc[field];
 							}
-						}
-
-						const cell_at_index =
-							this.datatable.datamanager.rows[rowIndex]?.[colIndex];
-						if (cell_at_index?.name !== docname) {
-							this.datatable.refresh(this.get_data(this.data), this.columns);
 						}
 					})
 					.then(() => this.refresh_charts());
@@ -924,314 +851,10 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	get_data(values) {
-		if (this.is_collapsible_group_mode()) {
-			return this.build_grouped_rows(values || []);
-		}
-		this.group_header_row_indices = [];
-		this.group_summary_row_indices = [];
 		return this.build_rows(values);
 	}
 
-	is_collapsible_group_mode() {
-		return Boolean(this.group_by && this.group_by_control?.group_by_field);
-	}
-
-	get_grouped_field_id(doctype, fieldname) {
-		if (!fieldname) return null;
-		return doctype === this.doctype ? fieldname : `${doctype}:${fieldname}`;
-	}
-
-	get_summary_functions() {
-		return [
-			{ value: "sum", label: __("مجموع") },
-			{ value: "avg", label: __("میانگین") },
-			{ value: "count", label: __("تعداد") },
-			{ value: "min", label: __("کمینه") },
-			{ value: "max", label: __("بیشینه") },
-		];
-	}
-
-	get_summary_function_label(fn) {
-		const summary_fn = (fn || this.aggregate_summary_function || "sum").toLowerCase();
-		const option = this.get_summary_functions().find((item) => item.value === summary_fn);
-		return option ? option.label : __("مجموع");
-	}
-
-	compute_summary_value(values, fn) {
-		const summary_fn = (fn || this.aggregate_summary_function || "sum").toLowerCase();
-		if (!values.length) return 0;
-
-		if (summary_fn === "count") return values.length;
-		if (summary_fn === "min") return Math.min(...values);
-		if (summary_fn === "max") return Math.max(...values);
-		if (summary_fn === "avg") {
-			return values.reduce((acc, value) => acc + value, 0) / values.length;
-		}
-
-		return values.reduce((acc, value) => acc + value, 0);
-	}
-
-	build_grouped_rows(data) {
-		const group_field_id = this.get_grouped_field_id(
-			this.group_by_control.group_by_doctype,
-			this.group_by_control.group_by_field
-		);
-		if (!group_field_id) return this.build_rows(data);
-
-		const aggregate_field_id =
-			this.group_by_control.aggregate_function === "count"
-				? null
-				: this.get_grouped_field_id(
-						this.group_by_control.aggregate_on_doctype || this.doctype,
-						this.group_by_control.aggregate_on_field
-				  );
-
-		const grouped = new Map();
-		for (const doc of data) {
-			const raw_key = doc[group_field_id];
-			const group_key =
-				raw_key === undefined || raw_key === null || raw_key === ""
-					? __("بدون مقدار")
-					: String(raw_key);
-			if (!grouped.has(group_key)) {
-				grouped.set(group_key, []);
-			}
-			grouped.get(group_key).push(doc);
-		}
-
-		const rows = [];
-		this.group_header_row_indices = [];
-		this.group_summary_row_indices = [];
-		const grouped_entries = Array.from(grouped.entries()).sort((a, b) =>
-			cstr(a[0]).localeCompare(cstr(b[0]), frappe.boot.lang || "en")
-		);
-		for (const [group_key, docs] of grouped_entries) {
-			this.group_header_row_indices.push(rows.length);
-			rows.push(this.make_group_header_row(group_key, docs, aggregate_field_id, group_field_id));
-			for (const doc of docs) {
-				rows.push(this.to_grouped_row_object(this.build_row(doc), 1));
-			}
-			if (this.add_totals_row) {
-				this.group_summary_row_indices.push(rows.length);
-				rows.push(this.make_group_summary_row(docs));
-			}
-		}
-
-		return rows;
-	}
-
-	make_group_header_row(group_key, docs, aggregate_field_id, group_field_id) {
-		const row = { indent: 0 };
-		const fn = this.group_by_control.aggregate_function || "count";
-		const count = docs.length;
-		let aggregate_value = null;
-
-		if (aggregate_field_id && ["sum", "avg"].includes(fn)) {
-			const numeric_values = docs
-				.map((doc) => flt(doc[aggregate_field_id]))
-				.filter((value) => !isNaN(value));
-			if (fn === "sum") {
-				aggregate_value = numeric_values.reduce((acc, value) => acc + value, 0);
-			} else if (fn === "avg") {
-				aggregate_value = numeric_values.length
-					? numeric_values.reduce((acc, value) => acc + value, 0) / numeric_values.length
-					: 0;
-			}
-		}
-
-		const aggregate_label = this.columns_map[aggregate_field_id]?.content || "";
-		let summary = `${__("تعداد")}: ${count}`;
-		if (aggregate_value !== null) {
-			const aggregate_df = this.columns_map[aggregate_field_id]?.docfield;
-			const formatted = frappe.format(
-				aggregate_value,
-				aggregate_df,
-				{ always_show_decimals: true },
-				docs[0] || {}
-			);
-			const fn_label = fn === "sum" ? __("جمع") : __("میانگین");
-			summary += ` | ${fn_label} ${aggregate_label}: ${formatted}`;
-		}
-
-		const first_col_id = this.columns[0]?.id;
-
-		for (const col of this.columns) {
-			row[col.id] = {
-				content: "",
-				editable: false,
-				column: col,
-			};
-		}
-
-		if (first_col_id) {
-			row[first_col_id] = {
-				content: `${group_key} — ${summary}`,
-				editable: false,
-				column: this.columns_map[first_col_id] || this.columns[0],
-				format: (value) => {
-					return `<span class="report-group-header-label">${frappe.utils.escape_html(
-						cstr(value || "")
-					)}</span>`;
-				},
-			};
-		}
-
-		if (group_field_id && group_field_id !== first_col_id && row[group_field_id]) {
-			row[group_field_id] = {
-				content: group_key,
-				editable: false,
-				column: this.columns_map[group_field_id],
-				format: (value) => frappe.utils.escape_html(cstr(value || "")),
-			};
-		}
-
-		if (
-			aggregate_field_id &&
-			aggregate_field_id !== first_col_id &&
-			row[aggregate_field_id] &&
-			aggregate_value !== null
-		) {
-			row[aggregate_field_id] = {
-				content: aggregate_value,
-				editable: false,
-				column: this.columns_map[aggregate_field_id],
-			};
-		}
-
-		return row;
-	}
-
-	make_group_summary_row(docs) {
-		const row = { indent: 1 };
-		const summary_fn = this.aggregate_summary_function || "sum";
-		const summary_label = __("آمارگیری ({0})", [this.get_summary_function_label(summary_fn)]);
-		const totals = this.get_columns_totals(docs, summary_fn);
-		const first_col_id = this.columns[0]?.id;
-
-		for (const col of this.columns) {
-			if (col.id === first_col_id) {
-				row[col.id] = {
-					content: summary_label,
-					editable: false,
-					column: col,
-					format: (value) =>
-						`<span class="report-group-summary-label">${frappe.utils.escape_html(
-							cstr(value || "")
-						)}</span>`,
-				};
-				continue;
-			}
-
-			row[col.id] = {
-				content: totals[col.id] ?? "",
-				editable: false,
-				column: col,
-			};
-		}
-
-		return row;
-	}
-
-	to_grouped_row_object(row_array, indent = 1) {
-		const row = { indent };
-		this.columns.forEach((col, index) => {
-			row[col.id] = row_array[index] || { content: "", column: col, editable: false };
-		});
-		return row;
-	}
-
-	clear_group_row_styles(datatable = this.datatable) {
-		if (!datatable?.style) return;
-		const selectors = datatable.__group_row_style_selectors || [];
-		selectors.forEach((selector) => datatable.style.removeStyle(selector));
-		datatable.__group_row_style_selectors = [];
-	}
-
-	set_group_row_style(datatable, selector, rule) {
-		datatable.style.setStyle(selector, rule);
-		datatable.__group_row_style_selectors = datatable.__group_row_style_selectors || [];
-		datatable.__group_row_style_selectors.push(selector);
-	}
-
-	apply_group_row_styles() {
-		if (!this.datatable?.style?.setStyle) return;
-		this.clear_group_row_styles(this.datatable);
-
-		if (!this.is_collapsible_group_mode()) return;
-
-		const serial_col_index = this.datatable.datamanager.getColumnIndexById("_rowIndex");
-		const first_data_col_index = serial_col_index >= 0 ? serial_col_index + 1 : 0;
-		const group_header_rows = this.group_header_row_indices || [];
-		const group_summary_rows = this.group_summary_row_indices || [];
-
-			group_header_rows.forEach((row_index) => {
-				const row_selector = `.dt-scrollable .dt-row-${row_index}`;
-				this.set_group_row_style(this.datatable, `${row_selector} .dt-cell`, {
-					backgroundColor: "var(--subtle-fg, #eef2f7)",
-					borderColor: "var(--border-color, #d1d8dd)",
-				});
-				this.set_group_row_style(
-					this.datatable,
-					`${row_selector} .dt-cell:not(.dt-cell--col-${first_data_col_index}) .dt-cell__content`,
-					{
-						opacity: 0,
-						pointerEvents: "none",
-					}
-				);
-				this.set_group_row_style(
-					this.datatable,
-					`${row_selector} .dt-cell--col-${first_data_col_index}`,
-					{
-						borderRight: "none",
-					}
-				);
-				this.set_group_row_style(
-					this.datatable,
-					`${row_selector} .dt-cell--col-${first_data_col_index} .dt-cell__content`,
-				{
-					fontWeight: "600",
-					paddingTop: "10px",
-					paddingBottom: "10px",
-				}
-			);
-				if (serial_col_index >= 0) {
-					this.set_group_row_style(
-						this.datatable,
-						`${row_selector} .dt-cell--col-${serial_col_index} .dt-cell__content`,
-						{
-							opacity: 0,
-						}
-					);
-				}
-			});
-
-			group_summary_rows.forEach((row_index) => {
-				const row_selector = `.dt-scrollable .dt-row-${row_index}`;
-				this.set_group_row_style(this.datatable, `${row_selector} .dt-cell`, {
-					backgroundColor: "var(--control-bg, #f7f8fa)",
-				});
-			this.set_group_row_style(
-				this.datatable,
-				`${row_selector} .dt-cell--col-${first_data_col_index} .dt-cell__content`,
-				{
-					fontWeight: "600",
-				}
-			);
-				if (serial_col_index >= 0) {
-					this.set_group_row_style(
-						this.datatable,
-						`${row_selector} .dt-cell--col-${serial_col_index} .dt-cell__content`,
-						{
-							opacity: 0,
-						}
-					);
-				}
-			});
-		}
-
 	set_fields() {
-		this.fields = [];
-
 		// default fields
 		["name", "docstatus"].map((f) => this._add_field(f));
 
@@ -1251,7 +874,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	set_default_fields() {
 		// get fields from meta
-		this.fields = [];
+		this.fields = this.fields || [];
 		const add_field = (f) => this._add_field(f);
 
 		// default fields
@@ -1694,13 +1317,10 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		const out = data.map((d) => this.build_row(d));
 
 		if (this.add_totals_row) {
-			const totals = this.get_columns_totals(data, this.aggregate_summary_function);
-			const totals_label = __("آمارگیری ({0})", [
-				this.get_summary_function_label(this.aggregate_summary_function),
-			]);
+			const totals = this.get_columns_totals(data);
 			const totals_row = this.columns.map((col, i) => {
 				return {
-					name: totals_label,
+					name: __("Totals Row"),
 					content: totals[col.id],
 					format: (value) => {
 						let formatted_value = frappe.format(
@@ -1712,7 +1332,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 							data[0]
 						);
 						if (i === 0) {
-							return this.format_total_cell(formatted_value, col, totals_label);
+							return this.format_total_cell(formatted_value, col);
 						}
 						return formatted_value;
 					},
@@ -1724,8 +1344,8 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		return out;
 	}
 
-	format_total_cell(formatted_value, df, label = __("Totals")) {
-		let cell_value = cstr(label).bold();
+	format_total_cell(formatted_value, df) {
+		let cell_value = __("Totals").bold();
 		if (frappe.model.is_numeric_field(df.docfield)) {
 			cell_value = `<span class="flex justify-between">
 				${cell_value} ${$(formatted_value).text()}
@@ -1811,7 +1431,6 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 				fields: this.fields,
 				order_by: this.sort_selector.get_sql_string(),
 				add_totals_row: this.add_totals_row,
-				aggregate_summary_function: this.aggregate_summary_function,
 				page_length: this.page_length,
 				column_widths: this.get_column_widths(),
 				group_by: this.group_by_control.get_settings(),
@@ -1973,25 +1592,22 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		);
 	}
 
-	get_columns_totals(data, summary_fn = null) {
-		if (!this.add_totals_row && !summary_fn) {
+	get_columns_totals(data) {
+		if (!this.add_totals_row) {
 			return [];
 		}
 
-		const fn = (summary_fn || this.aggregate_summary_function || "sum").toLowerCase();
 		const row_totals = {};
 
-		this.columns.forEach((col) => {
-			if (!frappe.model.is_numeric_field(col.docfield)) {
-				row_totals[col.id] = "";
-				return;
-			}
+		this.columns.forEach((col, i) => {
+			const totals = data.reduce((totals, d) => {
+				if (col.id in d && frappe.model.is_numeric_field(col.docfield)) {
+					totals += flt(d[col.id]);
+					return totals;
+				}
+			}, 0);
 
-			const values = (data || [])
-				.map((d) => flt(d[col.id]))
-				.filter((value) => !isNaN(value));
-
-			row_totals[col.id] = this.compute_summary_value(values, fn);
+			row_totals[col.id] = totals;
 		});
 
 		return row_totals;
@@ -2000,41 +1616,13 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	report_menu_items() {
 		let items = [
 			{
-				label: __("آمارگیری کلی"),
+				label: __("Show Totals"),
 				action: () => {
-					const dialog = new frappe.ui.Dialog({
-						title: __("آمارگیری کلی"),
-						fields: [
-							{
-								fieldname: "enable_summary",
-								fieldtype: "Check",
-								label: __("نمایش آمارگیری"),
-								default: this.add_totals_row ? 1 : 0,
-							},
-							{
-								fieldname: "summary_function",
-								fieldtype: "Select",
-								label: __("نوع آمارگیری"),
-								options: this.get_summary_functions(),
-								default: this.aggregate_summary_function || "sum",
-								depends_on: "eval:doc.enable_summary==1",
-							},
-						],
-						primary_action_label: __("اعمال"),
-						primary_action: (values) => {
-							this.add_totals_row = !!values.enable_summary;
-							this.aggregate_summary_function = values.summary_function || "sum";
-							this.save_view_user_settings({
-								add_totals_row: this.add_totals_row,
-								aggregate_summary_function: this.aggregate_summary_function,
-							});
-
-							this.datatable.refresh(this.get_data(this.data), this.columns);
-							this.apply_group_row_styles();
-							dialog.hide();
-						},
+					this.add_totals_row = !this.add_totals_row;
+					this.save_view_user_settings({
+						add_totals_row: this.add_totals_row,
 					});
-					dialog.show();
+					this.datatable.refresh(this.get_data(this.data));
 				},
 			},
 			{
@@ -2292,10 +1880,15 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	get_search_params() {
-		// Grouping is handled client-side for collapsible grouped rows.
-		// Do not send `_group_by` to backend, otherwise server returns aggregate-only rows
-		// and most columns become empty in report view.
-		return super.get_search_params();
+		let search_params = super.get_search_params();
+		let config = this.group_by_control.get_settings();
+		if (config) {
+			search_params.append(
+				"_group_by",
+				JSON.stringify([config.group_by, config.aggregate_on, config.aggregate_function])
+			);
+		}
+		return search_params;
 	}
 
 	parse_filters_from_route_options() {

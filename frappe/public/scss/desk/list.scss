@@ -260,15 +260,6 @@
 		cursor: pointer;
 		text-decoration: underline;
 	}
-
-	.selected-color {
-		display: inline-block;
-		width: 12px;
-		height: 12px;
-		border-radius: 4px;
-		margin-right: 6px;
-		vertical-align: middle;
-	}
 }
 
 .list-row-col .indicator-pill {
@@ -705,16 +696,5 @@ input.list-header-checkbox {
 				}
 			}
 		}
-	}
-	.page-indicator-pill {
-		display: none;
-	}
-}
-
-@media screen and (max-width: 375px) {
-	.navbar-breadcrumbs li:last-child > a {
-		max-width: 105px;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 }

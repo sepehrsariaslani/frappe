@@ -210,14 +210,6 @@ class Importer:
 
 					log_index += 1
 
-					try:
-						frappe.logger("data_import").error(
-							f"Data Import {self.data_import.name}: row(s) {row_indexes} failed to import",
-							exc_info=True,
-						)
-					except Exception:
-						pass
-
 		# Logs are db inserted directly so will have to be fetched again
 		import_log = (
 			frappe.get_all(
@@ -241,12 +233,6 @@ class Importer:
 			status = "Error"
 		elif len(failures) > 0 and len(successes) > 0:
 			status = "Partial Success"
-			try:
-				frappe.logger("data_import").warning(
-					f"Data Import {self.data_import.name}: {len(failures)} of {total_payload_count} rows failed"
-				)
-			except Exception:
-				pass
 		elif len(successes) == total_payload_count:
 			status = "Success"
 		else:
@@ -629,7 +615,7 @@ class ImportFile:
 		if extension == "csv":
 			data = read_csv_content(content, use_sniffer=self.use_sniffer)
 		elif extension == "xlsx":
-			data = read_xlsx_file_from_attached_file(fcontent=content, read_only=True)
+			data = read_xlsx_file_from_attached_file(fcontent=content)
 		elif extension == "xls":
 			data = read_xls_file_from_attached_file(content)
 		return data
@@ -940,8 +926,7 @@ class Column:
 				self.warnings.append(
 					{
 						"message": _("Mapping column {0} to field {1}").format(
-							frappe.bold(escape_html(header_title) or "<i>Untitled Column</i>"),
-							frappe.bold(df.label),
+							frappe.bold(header_title or "<i>Untitled Column</i>"), frappe.bold(df.label)
 						),
 						"type": "info",
 					}
@@ -968,9 +953,7 @@ class Column:
 			self.warnings.append(
 				{
 					"col": column_number,
-					"message": _("Skipping Duplicate Column {0}").format(
-						frappe.bold(escape_html(header_title))
-					),
+					"message": _("Skipping Duplicate Column {0}").format(frappe.bold(header_title)),
 					"type": "info",
 				}
 			)
@@ -981,7 +964,7 @@ class Column:
 			self.warnings.append(
 				{
 					"col": column_number,
-					"message": _("Skipping column {0}").format(frappe.bold(escape_html(header_title))),
+					"message": _("Skipping column {0}").format(frappe.bold(header_title)),
 					"type": "info",
 				}
 			)
@@ -989,9 +972,7 @@ class Column:
 			self.warnings.append(
 				{
 					"col": column_number,
-					"message": _("Cannot match column {0} with any field").format(
-						frappe.bold(escape_html(header_title))
-					),
+					"message": _("Cannot match column {0} with any field").format(frappe.bold(header_title)),
 					"type": "info",
 				}
 			)
@@ -1036,7 +1017,7 @@ class Column:
 				{
 					"col": self.column_number,
 					"message": message.format(
-						frappe.bold(escape_html(self.header_title)),
+						frappe.bold(self.header_title),
 						len(unique_date_formats),
 						frappe.bold(user_date_format),
 					),
@@ -1059,14 +1040,13 @@ class Column:
 		if self.df.fieldtype == "Link":
 			# find all values that dont exist
 			transform = (lambda v: cstr(v).lower()) if frappe.db.db_type == "mariadb" else cstr
-			original_values = {transform(v): cstr(v) for v in self.column_values if v}
-			values = list(original_values.keys())
+			values = list({transform(v) for v in self.column_values if v})
 			exists = [
 				transform(d.name) for d in frappe.get_all(self.df.options, filters={"name": ("in", values)})
 			]
 			not_exists = list(set(values) - set(exists))
 			if not_exists:
-				missing_values = ", ".join(escape_html(original_values[v]) for v in not_exists)
+				missing_values = ", ".join(escape_html(v) for v in not_exists)
 				message = _("The following values do not exist for {0}: {1}")
 				self.warnings.append(
 					{

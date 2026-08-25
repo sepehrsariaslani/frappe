@@ -71,9 +71,7 @@ def add_docshare(
 	doc.save(ignore_permissions=True)
 	notify_assignment(user, doctype, name, everyone, notify=notify)
 
-	if (user != name or doctype != "User") and frappe.get_cached_value(
-		"User", user, "follow_shared_documents"
-	):
+	if frappe.get_cached_value("User", user, "follow_shared_documents"):
 		follow_document(doctype, name, user)
 
 	return doc

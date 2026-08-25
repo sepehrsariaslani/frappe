@@ -49,7 +49,7 @@
 						/>
 						<button class="ml-2 btn btn-xs btn-icon" @click="remove_column(column)">
 							<svg class="icon icon-sm">
-								<use href="#icon-x"></use>
+								<use href="#icon-close"></use>
 							</svg>
 						</button>
 					</div>

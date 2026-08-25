@@ -1,0 +1,21 @@
+@@ -49,7 +50,7 @@
+ 
+ web_include_js = ["website_script.js"]
+ 
+-web_include_css = []
++web_include_css = ["/files/frappe_system_theme.css"]
+ 
+ email_css = ["email.bundle.css"]
+ 
+@@ -293,7 +294,10 @@
+ ]
+ 
+ before_migrate = ["frappe.core.doctype.patch_log.patch_log.before_migrate"]
+-after_migrate = ["frappe.website.doctype.website_theme.website_theme.after_migrate"]
++after_migrate = [
++	"frappe.website.doctype.website_theme.website_theme.after_migrate",
++	"frappe.core.doctype.system_settings.system_theme.generate_system_theme_css",
++]
+ 
+ otp_methods = ["OTP App", "Email", "SMS"]
+ 

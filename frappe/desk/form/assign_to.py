@@ -14,7 +14,7 @@ from frappe.desk.doctype.notification_log.notification_log import (
 	get_title,
 	get_title_html,
 )
-from frappe.desk.form.document_follow import _follow_document
+from frappe.desk.form.document_follow import follow_document
 from frappe.utils.data import strip_html
 
 
@@ -40,7 +40,7 @@ def get(args=None):
 
 
 @frappe.whitelist()
-def add(args=None):
+def add(args=None, *, ignore_permissions=False):
 	"""add in someone's to do list
 	args = {
 	        "assign_to": [],
@@ -51,10 +51,6 @@ def add(args=None):
 	}
 
 	"""
-	return _add(args, ignore_permissions=False)
-
-
-def _add(args=None, *, ignore_permissions=False):
 	if not args:
 		args = frappe.local.form_dict
 
@@ -113,14 +109,12 @@ def _add(args=None, *, ignore_permissions=False):
 					)
 					frappe.throw(msg, title=_("Missing Permission"))
 				else:
-					frappe.share.add(doc.doctype, str(doc.name), assign_to)
+					frappe.share.add(doc.doctype, doc.name, assign_to)
 					shared_with_users.append(assign_to)
 
 			# make this document followed by assigned user
 			if frappe.get_cached_value("User", assign_to, "follow_assigned_documents"):
-				_follow_document(
-					args["doctype"], args["name"], assign_to, ignore_permissions=ignore_permissions
-				)
+				follow_document(args["doctype"], args["name"], assign_to)
 
 			# notify
 			notify_assignment(
@@ -180,16 +174,12 @@ def close_all_assignments(doctype, name, ignore_permissions=False):
 
 
 @frappe.whitelist()
-def remove(doctype, name, assign_to):
-	return _remove(doctype, name, assign_to, ignore_permissions=False)
-
-
-def _remove(doctype, name, assign_to, ignore_permissions=False):
+def remove(doctype, name, assign_to, ignore_permissions=False):
 	return set_status(doctype, name, "", assign_to, status="Cancelled", ignore_permissions=ignore_permissions)
 
 
 @frappe.whitelist()
-def remove_multiple(doctype, names):
+def remove_multiple(doctype, names, ignore_permissions=False):
 	docname_list = json.loads(names)
 
 	for name in docname_list:
@@ -199,15 +189,15 @@ def remove_multiple(doctype, names):
 			continue
 
 		for assignment in assignments:
-			remove(doctype, name, assignment.get("owner"))
+			remove(doctype, name, assignment.get("owner"), ignore_permissions)
 
 
 @frappe.whitelist()
-def close(doctype, name, assign_to):
+def close(doctype: str, name: str, assign_to: str, ignore_permissions=False):
 	if assign_to != frappe.session.user:
 		frappe.throw(_("Only the assignee can complete this to-do."))
 
-	return set_status(doctype, name, "", assign_to, status="Closed", ignore_permissions=False)
+	return set_status(doctype, name, "", assign_to, status="Closed", ignore_permissions=ignore_permissions)
 
 
 def set_status(doctype, name, todo=None, assign_to=None, status="Cancelled", ignore_permissions=False):

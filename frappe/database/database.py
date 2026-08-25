@@ -1299,23 +1299,9 @@ class Database:
 			self.value_cache[dt][cache_key] = count
 		return count
 
-	def _estimate_count(self, table: str) -> int:
-		"""Get estimated count of total rows in a single table. Override in subclasses."""
-		raise NotImplementedError
-
 	def estimate_count(self, doctype: str) -> int:
-		"""Get estimated count of total rows in a table.
-
-		The estimate is read one table at a time and cached in Redis with a 60-minute TTL
-		to avoid hammering information_schema.
-		"""
-		table = get_table_name(doctype)
-		cache_key = f"estimate_count::{table}"
-		count = frappe.cache.get_value(cache_key)
-		if count is None:
-			count = self._estimate_count(table)
-			frappe.cache.set_value(cache_key, count, expires_in_sec=60 * 60)
-		return count
+		"""Get estimated count of total rows in a table."""
+		raise NotImplementedError
 
 	@staticmethod
 	def format_date(date):
@@ -1358,7 +1344,7 @@ class Database:
 			)
 
 			if columns:
-				frappe.client_cache.set_value(key, columns)
+				frappe.cache.set_value(key, columns)
 
 		return columns
 

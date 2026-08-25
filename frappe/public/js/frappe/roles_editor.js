@@ -90,15 +90,6 @@ frappe.RoleEditor = class {
 						${__("{0} role does not have permission on any doctype", [__(role)])}
 					</div>`);
 				} else {
-					// standard rights + any custom permission types for the doctypes shown
-					const rights = [
-						...frappe.perm.rights,
-						...new Set(
-							permissions.flatMap(
-								(perm) => frappe.boot?.doctype_ptype_map?.[perm.parent] || []
-							)
-						),
-					];
 					$body.append(`
 						<div style="max-height:calc(100vh - 200px); overflow-y:auto;">
 							<table class="user-perm">
@@ -107,7 +98,7 @@ frappe.RoleEditor = class {
 										<th class="sticky-top ${header_bg_color}"> ${__("Document Type")} </th>
 										<th class="sticky-top ${header_bg_color}"> ${__("Level")} </th>
 										<th class="sticky-top ${header_bg_color}"> ${__("If Owner")} </th>
-										${rights
+										${frappe.perm.rights
 											.map(
 												(p) =>
 													`<th class="sticky-top ${header_bg_color}">${__(
@@ -127,7 +118,7 @@ frappe.RoleEditor = class {
 								<td>${__(perm.parent)}</td>
 								<td>${perm.permlevel}</td>
 								<td>${perm.if_owner ? frappe.utils.icon("check", "xs") : "-"}</td>
-								${rights
+								${frappe.perm.rights
 									.map(
 										(p) =>
 											`<td class="text-muted bold">${

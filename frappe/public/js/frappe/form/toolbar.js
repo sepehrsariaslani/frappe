@@ -126,8 +126,8 @@ frappe.ui.form.Toolbar = class Toolbar {
 		if (input_name) {
 			const warning = __("This cannot be undone");
 			const message = __("Are you sure you want to merge {0} with {1}?", [
-				frappe.utils.bold(docname),
-				frappe.utils.bold(input_name),
+				docname.bold(),
+				input_name.bold(),
 			]);
 			confirm_message = `${message}<br><b>${warning}<b>`;
 		}
@@ -161,8 +161,8 @@ frappe.ui.form.Toolbar = class Toolbar {
 								reload_form(input_name);
 								frappe.show_alert({
 									message: __("Document renamed from {0} to {1}", [
-										frappe.utils.bold(docname),
-										frappe.utils.bold(input_name),
+										docname.bold(),
+										input_name.bold(),
 									]),
 									indicator: "success",
 								});
@@ -170,8 +170,8 @@ frappe.ui.form.Toolbar = class Toolbar {
 						});
 						frappe.show_alert(
 							__("Document renaming from {0} to {1} has been queued", [
-								frappe.utils.bold(docname),
-								frappe.utils.bold(input_name),
+								docname.bold(),
+								input_name.bold(),
 							])
 						);
 					}
@@ -221,7 +221,7 @@ frappe.ui.form.Toolbar = class Toolbar {
 
 	setup_editable_title_click_event(element) {
 		let me = this;
-		element.off("click").on("click", () => {
+		element.on("click", () => {
 			let fields = [];
 			let docname = me.frm.doc.name;
 			let title_field = me.frm.meta.title_field || "";
@@ -423,7 +423,7 @@ frappe.ui.form.Toolbar = class Toolbar {
 				this.show_jump_to_field_dialog();
 			},
 			true,
-			{ shortcut: "Ctrl+J", ignore_inputs: true }
+			"Ctrl+J"
 		);
 	}
 
@@ -630,9 +630,8 @@ frappe.ui.form.Toolbar = class Toolbar {
 		) {
 			let doctype = is_doctype_form ? this.frm.docname : this.frm.doctype;
 			let is_doctype_custom = is_doctype_form ? this.frm.doc.custom : false;
-			let is_core_doctype = frappe.model.core_doctypes_list.includes(doctype);
 
-			if (!is_core_doctype && !is_doctype_custom && this.frm.meta.issingle === 0) {
+			if (doctype != "DocType" && !is_doctype_custom && this.frm.meta.issingle === 0) {
 				this.page.add_menu_item(
 					__("Customize"),
 					() => {
@@ -868,11 +867,7 @@ frappe.ui.form.Toolbar = class Toolbar {
 			!f.df.hidden &&
 			f.disp_status !== "None";
 
-		// if a child table row is open in the detail editor, search its fields instead
-		let grid_row = this.frm.open_grid_row();
-		let grid_form = grid_row?.grid_form;
-
-		let fields = (grid_form ? grid_form.layout.fields_list : this.frm.fields)
+		let fields = this.frm.fields
 			.filter(visible_fields_filter)
 			.map((f) => ({ label: __(f.df.label), value: f.df.fieldname }));
 
@@ -887,64 +882,15 @@ frappe.ui.form.Toolbar = class Toolbar {
 					reqd: 1,
 				},
 			],
-			keep_grid_form_open: !!grid_form,
 			primary_action_label: __("Go"),
 			primary_action: ({ fieldname }) => {
 				dialog.hide();
-				if (grid_form) {
-					this.scroll_to_grid_field(grid_form, fieldname);
-				} else {
-					this.frm.scroll_to_field(fieldname);
-				}
+				this.frm.scroll_to_field(fieldname);
 			},
 			animate: false,
 		});
 
 		dialog.show();
-	}
-
-	scroll_to_grid_field(grid_form, fieldname, focus = true) {
-		let field = grid_form.fields_dict[fieldname];
-		if (!field) return false;
-
-		let $el = field.$wrapper;
-		if (!$el || !$el.length) return false;
-
-		// set tab as active
-		if (field.tab && !field.tab.is_active()) {
-			field.tab.set_active();
-		}
-
-		// uncollapse section
-		if (field.section?.is_collapsed()) {
-			field.section.collapse(false);
-		}
-
-		// scroll to input
-		let scroll_container = grid_form.wrapper.find(".grid-form-body");
-		frappe.utils.scroll_to(
-			$el,
-			true,
-			15,
-			scroll_container.length ? scroll_container : $(".main-section")
-		);
-
-		// focus if text field
-		if (focus) {
-			setTimeout(() => {
-				$el.find("input, select, textarea").focus();
-			}, 500);
-		}
-
-		// highlight control inside field
-		let control_element = $el.closest(".frappe-control");
-		if (control_element.length) {
-			control_element.addClass("highlight");
-			setTimeout(() => {
-				control_element.removeClass("highlight");
-			}, 2000);
-		}
-		return true;
 	}
 
 	setup_sidebar_toggle(sidebar_wrapper) {
@@ -998,7 +944,7 @@ frappe.ui.form.Toolbar = class Toolbar {
 	}
 
 	get_follow_text(follow) {
-		if (follow == null) {
+		if (follow === null) {
 			follow = this.frm.get_docinfo().is_document_followed;
 		}
 		return follow ? __("Unfollow") : __("Follow");

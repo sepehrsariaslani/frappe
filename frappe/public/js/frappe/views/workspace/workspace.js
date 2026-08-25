@@ -76,8 +76,8 @@ frappe.views.Workspace = class Workspace {
 		this.$page = $(`<div class="editor-js-container"></div>`).appendTo(this.body);
 	}
 
-	get_workspaces() {
-		return frappe.xcall("frappe.desk.desktop.get_workspaces", null, "GET");
+	get_pages() {
+		return frappe.xcall("frappe.desk.desktop.get_workspace_sidebar_items", null, "GET");
 	}
 
 	show() {
@@ -217,11 +217,11 @@ frappe.views.Workspace = class Workspace {
 					route: "#",
 				});
 				if (!this.add_workspace_controls) {
-					this.workspace_actions_button = this.page.add_action_icon("ellipsis", "", "");
-					$(this.workspace_actions_button).removeAttr("data-original-title");
-					$(this.workspace_actions_button).removeClass("btn-default");
+					let workspace_actions_button = this.page.add_action_icon("ellipsis", "", "");
+					$(workspace_actions_button).removeAttr("data-original-title");
+					$(workspace_actions_button).removeClass("btn-default");
 					frappe.ui.create_menu({
-						parent: $(this.workspace_actions_button),
+						parent: $(workspace_actions_button),
 						open_on_left: true,
 						size: "fit-content",
 						menu_items: [
@@ -411,8 +411,6 @@ frappe.views.Workspace = class Workspace {
 				frappe.set_route(`workspace/${page.name}`);
 			});
 		}
-		$(this.workspace_actions_button).remove();
-		this.add_workspace_controls = false;
 	}
 
 	make_blocks_sortable() {
@@ -567,9 +565,8 @@ frappe.views.Workspace = class Workspace {
 							}
 
 							this.create_page(new_page).then(() => {
-								let route = frappe.router.slug(
-									new_page.public ? new_page.name : "private/" + new_page.name
-								);
+								let pre_url = new_page.public ? "" : "private/";
+								let route = pre_url + frappe.router.slug(new_page.title);
 								frappe.set_route(route);
 							});
 						});
@@ -788,9 +785,9 @@ frappe.views.Workspace = class Workspace {
 								indicator: "green",
 							});
 							if (page.public) {
-								frappe.set_route("desk", frappe.router.slug(page.name));
+								frappe.set_route("desk", page.title.toLowerCase());
 							} else {
-								frappe.set_route("desk", "private", frappe.router.slug(page.name));
+								frappe.set_route("desk", "private", page.title.toLowerCase());
 							}
 						}
 					},
@@ -806,7 +803,7 @@ frappe.views.Workspace = class Workspace {
 	reload() {
 		delete this.pages[this._page.name];
 		this._page = null;
-		return this.get_workspaces().then((r) => {
+		return this.get_pages().then((r) => {
 			frappe.boot.workspaces = r;
 			this.setup_pages(frappe.boot.workspaces.pages);
 			this.show();

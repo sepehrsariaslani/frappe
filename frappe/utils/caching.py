@@ -180,7 +180,7 @@ def redis_cache(ttl: int | None = 3600, user: str | bool | None = None, shared: 
 		func_key = f"{func.__module__}.{func.__qualname__}"
 
 		def clear_cache():
-			frappe.cache.delete_keys(func_key, user=user, shared=shared)
+			frappe.cache.delete_keys(func_key)
 
 		func.clear_cache = clear_cache
 		func.ttl = ttl if not callable(ttl) else 3600
@@ -249,10 +249,6 @@ def http_cache(
 			if frappe.request and frappe.request.method == "GET" and qualified_name in frappe.request.path:
 				frappe.local.response_headers.set("Cache-Control", cache_headers)
 			return ret
-
-		# Preserve whitelist attribute from decorated function
-		if hasattr(func, 'whitelisted'):
-			inner.whitelisted = func.whitelisted
 
 		return inner
 

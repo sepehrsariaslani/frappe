@@ -15,20 +15,8 @@ from frappe.utils import get_table_name
 TABLE_NAME_PATTERN = re.compile(r"^[\w -]*$", flags=re.ASCII)
 
 
-def _flatten(module):
-	import inspect
-
-	from frappe.types import _dict
-
-	new_mod = _dict()
-	for name, obj in inspect.getmembers(module, lambda x: not inspect.ismodule(x)):
-		if not name.startswith("_"):
-			new_mod[name] = obj
-	return new_mod
-
-
 class Base:
-	terms = _flatten(terms)
+	terms = terms
 	desc = Order.desc
 	asc = Order.asc
 	Schema = Schema

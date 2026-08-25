@@ -35,20 +35,63 @@ class Picker {
 		}
 	}
 	setup_emojis() {
+		// setup tab
 		this.setup_tab();
+		// setup emoji container
 		this.setup_emoji_container();
+		// emojis
 		this.emoji_wrapper = this.icon_picker_wrapper.find(".emojis");
-		frappe.utils.get_emojis().forEach((emoji) => {
-			const $icon = $(`<div id="${emoji}" class="emoji-wrapper">${emoji}</div>`);
+		gemoji.forEach((emoji, i) => {
+			let $icon = $(
+				`<div id="${gemoji[i].emoji}" class="emoji-wrapper">${gemoji[i].emoji}</div>`
+			);
 			this.emoji_wrapper.append($icon);
-			$icon.on("click", () => {
-				this.set_icon(emoji);
+			const set_values = () => {
+				this.set_icon(gemoji[i].emoji);
 				this.update_icon_selected();
+			};
+			$icon.on("click", () => {
+				set_values();
 			});
+			// $icon.keydown((e) => {
+			// 	const key_code = e.keyCode;
+			// 	if ([13, 32].includes(key_code)) {
+			// 		e.preventDefault();
+			// 		set_values();
+			// 	}
+			// });
+		});
+		this.search_input.on("input", (e) => {
+			e.preventDefault();
+			this.filter_emojis();
 		});
 	}
 	filter_emojis() {
-		this.emoji_wrapper.find(".emoji-wrapper").removeClass("hidden");
+		let value = this.search_input.val();
+		let filtered_emoji_names = [];
+		if (value) {
+			gemoji.forEach((g) => {
+				g.tags.forEach((t) => {
+					if (t.includes(value)) {
+						filtered_emoji_names.push(g);
+					}
+				});
+				g.names.forEach((t) => {
+					if (t.includes(value)) {
+						filtered_emoji_names.push(g);
+					}
+				});
+			});
+		}
+
+		if (filtered_emoji_names.length == 0) {
+			this.emoji_wrapper.find(".emoji-wrapper").removeClass("hidden");
+		} else {
+			this.emoji_wrapper.find(".emoji-wrapper").addClass("hidden");
+			filtered_emoji_names.forEach((g) => {
+				this.emoji_wrapper.find(`.emoji-wrapper[id*='${g.emoji}']`).removeClass("hidden");
+			});
+		}
 	}
 	setup_emoji_container() {
 		this.icon_picker_wrapper.find(".icon-section")

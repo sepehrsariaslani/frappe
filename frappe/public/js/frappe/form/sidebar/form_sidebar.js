@@ -72,10 +72,8 @@ frappe.ui.form.Sidebar = class {
 	}
 
 	setup_copy_event() {
-		let classes = [".form-name-copy", ".form-title-text"];
-
 		$(this.sidebar)
-			.find(".sidebar-meta-details " + classes.join(", "))
+			.find(".sidebar-meta-details .form-name-copy")
 			.tooltip()
 			.on("click", (e) => {
 				frappe.utils.copy_to_clipboard($(e.currentTarget).attr("data-copy"));
@@ -83,7 +81,8 @@ frappe.ui.form.Sidebar = class {
 	}
 
 	setup_editable_title() {
-		let form_sidebar_text = $(this.sidebar).find(".form-stats-likes .form-title-edit");
+		// setup editable title
+		let form_sidebar_text = $(this.sidebar).find(".form-stats-likes .form-title-text");
 		this.toolbar.setup_editable_title(form_sidebar_text);
 	}
 
@@ -159,14 +158,11 @@ frappe.ui.form.Sidebar = class {
 			.html(
 				get_user_message(
 					this.frm.doc.modified_by,
-					__("Last Edited By You", null),
-					__("Last Edited By {0}", [get_user_link(this.frm.doc.modified_by)])
+					__("Last Edited by You", null),
+					__("Last Edited by {0}", [get_user_link(this.frm.doc.modified_by)])
 				) +
 					" <br> " +
-					(cint(frappe.boot.user.show_absolute_datetime_in_timeline) ||
-					cint(frappe.boot.sysdefaults.show_absolute_datetime_in_timeline)
-						? frappe.datetime.str_to_user(this.frm.doc.modified)
-						: comment_when(this.frm.doc.modified))
+					comment_when(this.frm.doc.modified)
 			);
 		this.sidebar
 			.find(".created-by")
@@ -177,10 +173,7 @@ frappe.ui.form.Sidebar = class {
 					__("Created By {0}", [get_user_link(this.frm.doc.owner)])
 				) +
 					" <br> " +
-					(cint(frappe.boot.user.show_absolute_datetime_in_timeline) ||
-					cint(frappe.boot.sysdefaults.show_absolute_datetime_in_timeline)
-						? frappe.datetime.str_to_user(this.frm.doc.creation)
-						: comment_when(this.frm.doc.creation))
+					comment_when(this.frm.doc.creation)
 			);
 	}
 

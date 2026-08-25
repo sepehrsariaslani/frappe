@@ -1,0 +1,32 @@
+@@ -175,13 +190,13 @@
+ 	</section>
+ 
+ 	<section class='for-forgot'>
+-		{{ logo_section('Forgot Password') }}
++		{{ logo_section('بازیابی رمز عبور') }}
+ 		<div class="login-content page-card">
+ 			<form class="form-signin form-forgot hide" role="form">
+ 				<div class="page-card-body">
+ 					<div class="email-field">
+ 						<input type="email" id="forgot_email" class="form-control"
+-							placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
++							placeholder="آدرس ایمیل" required autofocus autocomplete="username">
+ 						<svg class="field-icon email-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"
+ 							xmlns="http://www.w3.org/2000/svg">
+ 							<path
+@@ -205,13 +220,13 @@
+ 	</section>
+ 
+ 	<section class='for-login-with-email-link'>
+-			{{ logo_section(_('Login with Email Link')) }}
++			{{ logo_section('ورود با لینک ایمیل') }}
+ 		<div class="login-content page-card">
+ 			<form class="form-signin form-login-with-email-link hide" role="form">
+ 				<div class="page-card-body">
+ 					<div class="email-field">
+ 						<input type="email" id="login_with_email_link_email" class="form-control"
+-							placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
++							placeholder="آدرس ایمیل" required autofocus autocomplete="username">
+ 						<svg class="field-icon email-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"
+ 							xmlns="http://www.w3.org/2000/svg">
+ 							<path

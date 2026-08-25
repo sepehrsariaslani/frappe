@@ -1,5 +1,5 @@
 import frappe
-from frappe.desk.desk_views import DeskViews
+from frappe.boot import get_user_pages_or_reports
 from frappe.desk.doctype.note.note import _get_unseen_notes, get_unseen_notes, mark_as_seen
 from frappe.tests import IntegrationTestCase
 
@@ -70,7 +70,7 @@ class TestPermissionQueries(IntegrationTestCase):
 			}
 		).insert(ignore_permissions=True)
 
-		DeskViews.get_user_pages_or_reports("Report")
+		get_user_pages_or_reports("Report")
 		allowed_reports = frappe.cache.get_value("has_role:Report", user=frappe.session.user)
 
 		# Test user must not see admin user's report

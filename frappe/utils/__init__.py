@@ -24,14 +24,7 @@ from typing import Any, Generic, TypeAlias, TypedDict
 import orjson
 from werkzeug.test import Client
 
-from frappe.deprecation_dumpster import (
-	get_gravatar,
-	get_gravatar_url,
-	gzip_compress,
-	gzip_decompress,
-	has_gravatar,
-	make_esc,
-)
+from frappe.deprecation_dumpster import gzip_compress, gzip_decompress, make_esc
 
 # utility functions like cint, int, flt, etc.
 from frappe.utils.data import *
@@ -305,11 +298,43 @@ def random_string(length: int) -> str:
 	return "".join(secrets.choice(alphabet) for i in range(length))
 
 
-def get_identicon(email: str) -> str:
-	"""Return an identicon image (base64) for the given email."""
+def has_gravatar(email: str) -> str:
+	"""Return gravatar url if user has set an avatar at gravatar.com."""
+	import requests
+
+	if frappe.flags.in_import or frappe.flags.in_install or frappe.in_test:
+		# no gravatar if via upload
+		# since querying gravatar for every item will be slow
+		return ""
+
+	gravatar_url = get_gravatar_url(email, "404")
+	try:
+		res = requests.get(gravatar_url, timeout=5)
+		if res.status_code == 200:
+			return gravatar_url
+		else:
+			return ""
+	except requests.exceptions.RequestException:
+		return ""
+
+
+def get_gravatar_url(email: str, default: Literal["mm", "404"] = "mm") -> str:
+	"""Return gravatar URL for the given email.
+
+	If `default` is set to "404", gravatar URL will return 404 if no avatar is found.
+	If `default` is set to "mm", a placeholder image will be returned.
+	"""
+	hexdigest = hashlib.md5(frappe.as_unicode(email).encode("utf-8"), usedforsecurity=False).hexdigest()
+	return f"https://secure.gravatar.com/avatar/{hexdigest}?d={default}&s=200"
+
+
+def get_gravatar(email: str) -> str:
+	"""Return gravatar URL if user has set an avatar at gravatar.com.
+
+	Else return identicon image (base64)."""
 	from frappe.utils.identicon import Identicon
 
-	return Identicon(email).base64()
+	return has_gravatar(email) or Identicon(email).base64()
 
 
 def get_traceback(with_context: bool = False) -> str:
@@ -880,15 +905,16 @@ def call(fn, *args, **kwargs):
 
 def get_safe_filters(filters):
 	try:
-		parsed = orjson.loads(filters)
+		filters = orjson.loads(filters)
+
+		if isinstance(filters, int | float):
+			filters = frappe.as_unicode(filters)
+
 	except (TypeError, ValueError):
-		# not a string, or not valid json
-		return filters
-	# numeric JSON is ambiguous: docnames like "3E002" parse as floats and
-	# would be corrupted by stringifying back, so keep the original string
-	if isinstance(parsed, int | float) and not isinstance(parsed, bool):
-		return filters
-	return parsed
+		# filters are not passed, not json
+		pass
+
+	return filters
 
 
 def create_batch(iterable: Iterable, size: int) -> Generator[Iterable]:
@@ -1013,9 +1039,8 @@ def groupby_metric(iterable: dict[str, list], key: str):
 	"""
 	records = {}
 	for category, items in iterable.items():
-		if items:
-			for item in items:
-				records.setdefault(item[key], {}).setdefault(category, []).append(item)
+		for item in items:
+			records.setdefault(item[key], {}).setdefault(category, []).append(item)
 	return records
 
 

@@ -375,7 +375,7 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 
 		this.$input.on("awesomplete-selectcomplete", function (e) {
 			let o = e.originalEvent;
-			if (cstr(o.text.value).indexOf("__link_option") !== -1) {
+			if (o.text.value.indexOf("__link_option") !== -1) {
 				me.$input.val("");
 			}
 		});
@@ -781,6 +781,11 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			return obj;
 		};
 
+		// apply link field filters
+		if (this.df.link_filters && !!this.df.link_filters.length) {
+			this.apply_link_field_filters();
+		}
+
 		if (this.get_query || this.df.get_query) {
 			var get_query = this.get_query || this.df.get_query;
 			if ($.isPlainObject(get_query)) {
@@ -842,19 +847,17 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			if (!args.filters) args.filters = {};
 			$.extend(args.filters, this.df.filters);
 		}
-
-		if (this.df.link_filters && !!this.df.link_filters.length) {
-			args.filters = { ...(args.filters || {}), ...this.apply_link_field_filters() };
-		}
 	}
 
 	apply_link_field_filters() {
-		try {
-			return this.parse_filters(JSON.parse(this.df.link_filters));
-		} catch (e) {
-			console.error("Invalid link_filters JSON:", this.df.link_filters, e);
-			return {};
-		}
+		let link_filters = JSON.parse(this.df.link_filters);
+		let filters = this.parse_filters(link_filters);
+		// take filters from the link field and add to the query
+		this.get_query = function () {
+			return {
+				filters,
+			};
+		};
 	}
 
 	parse_filters(link_filters) {
@@ -883,11 +886,6 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 		}
 
 		return this.validate_link_and_fetch(value);
-	}
-	after_set_value() {
-		for (const target_field of Object.keys(this.fetch_map)) {
-			this.frm.refresh_field(target_field);
-		}
 	}
 	validate_link_and_fetch(value) {
 		const args = this.get_search_args(value);

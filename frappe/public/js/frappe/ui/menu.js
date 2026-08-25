@@ -29,6 +29,8 @@ frappe.ui.menu = class ContextMenu {
 			});
 		} else {
 			$(this.opts.parent).on("click", function (event) {
+				event.preventDefault();
+				event.stopPropagation();
 				if (!me.parent_menu) {
 					if (me.visible) {
 						me.hide();
@@ -103,20 +105,13 @@ frappe.ui.menu = class ContextMenu {
 				item.action ? `return ${item.action}` : ""
 			}">
 				<a>
-					<div class="frappe-menu-item-icon" ${!(iconMarkup != "") ? "hidden" : ""}>
+					<div class="menu-item-icon" ${!(iconMarkup != "") ? "hidden" : ""}>
 						${iconMarkup}
 					</div>
 					<span class="menu-item-title">${__(item.label)}</span>
 					${
-						item.shortcut
-							? `<span class="menu-item-shortcut">${frappe.ui.keys.get_shortcut_label(
-									item.shortcut
-							  )}</span>`
-							: ""
-					}
-					${
 						item.items && item.items.length
-							? `<div class="frappe-menu-item-icon" style="margin-left:auto">
+							? `<div class="menu-item-icon" style="margin-left:auto">
 						${frappe.utils.icon(`chevron-${chevron_direction}`)}
 					</div>`
 							: ""
@@ -308,19 +303,12 @@ frappe.ui.create_menu = function (opts) {
 
 	frappe.menu_map[context_menu.name] = context_menu;
 
-	document.addEventListener(
-		"click",
-		function (e) {
-			if (
-				frappe.menu_map[context_menu.name].visible &&
-				!context_menu.template[0].contains(e.target)
-			) {
-				frappe.menu_map[context_menu.name].hide();
-				opts.onHide && opts.onHide(opts.parent);
-			}
-		},
-		true
-	);
+	$(document).on("click", function () {
+		if (frappe.menu_map[context_menu.name].visible) {
+			frappe.menu_map[context_menu.name].hide();
+			opts.onHide && opts.onHide(opts.parent);
+		}
+	});
 
 	$(document).on("keydown", function (e) {
 		if (e.key === "Escape" && frappe.menu_map[context_menu.name].visible) {

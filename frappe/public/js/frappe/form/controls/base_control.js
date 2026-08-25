@@ -244,7 +244,6 @@ frappe.ui.form.Control = class BaseControl {
 					}
 					me.set_invalid && me.set_invalid();
 				},
-				() => me?.after_set_value?.(),
 			]);
 		}
 		value = this.validate(value);

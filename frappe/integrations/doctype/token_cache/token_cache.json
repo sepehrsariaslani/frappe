@@ -1,6 +1,7 @@
 {
  "actions": [],
  "autoname": "format:{connected_app}-{user}",
+ "beta": 1,
  "creation": "2019-01-24 16:56:55.631096",
  "doctype": "DocType",
  "document_type": "System",
@@ -85,11 +86,11 @@
   }
  ],
  "links": [],
- "modified": "2026-05-30 23:26:46.860235",
+ "modified": "2024-03-23 16:03:58.980060",
  "modified_by": "Administrator",
  "module": "Integrations",
  "name": "Token Cache",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -104,7 +105,6 @@
    "role": "All"
   }
  ],
- "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": []

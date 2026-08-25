@@ -46,29 +46,18 @@ class Note(Document):
 		frappe.cache.delete_keys(UNSEEN_NOTES_KEY)
 		return super().clear_cache()
 
-	def mark_seen_by(self, user: str) -> bool:
+	def mark_seen_by(self, user: str) -> None:
 		if user in [d.user for d in self.seen_by]:
-			return False
+			return
 
 		self.append("seen_by", {"user": user})
-		return True
 
 
-@frappe.whitelist(methods=["POST"])
+@frappe.whitelist()
 def mark_as_seen(note: str):
 	note: Note = frappe.get_doc("Note", note)
-	note.check_permission("read")
-	current_user = frappe.session.user
-
-	# Save as Administrator so marking a public note as seen does not expose
-	# the viewing user through standard owner/modified_by metadata.
-	try:
-		frappe.set_user("Administrator")
-		added = note.mark_seen_by(current_user)
-		if added:
-			note.save(ignore_version=True)
-	finally:
-		frappe.set_user(current_user)
+	note.mark_seen_by(frappe.session.user)
+	note.save(ignore_permissions=True, ignore_version=True)
 
 
 def get_permission_query_conditions(user):

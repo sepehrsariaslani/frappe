@@ -88,7 +88,10 @@ class Dashboard {
 			"frappe.desk.doctype.dashboard.dashboard.get_permitted_charts"
 		).then((charts) => {
 			if (!charts.length) {
-				return;
+				frappe.msgprint(
+					__("No Permitted Charts on this Dashboard"),
+					__("No Permitted Charts")
+				);
 			}
 
 			frappe.dashboard_utils.get_dashboard_settings().then((settings) => {

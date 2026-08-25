@@ -110,8 +110,7 @@ class Page(Document):
 			frappe.throw(_("Deletion of this document is only permitted in developer mode."))
 
 		delete_custom_role("page", self.name)
-		if frappe.conf.developer_mode:
-			frappe.db.after_commit(self.delete_folder_with_contents)
+		frappe.db.after_commit(self.delete_folder_with_contents)
 
 	def delete_folder_with_contents(self):
 		try:

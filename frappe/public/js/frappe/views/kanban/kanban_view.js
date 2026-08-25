@@ -127,15 +127,6 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 		}
 	}
 
-	setup_result_container_area() {
-		// pass
-	}
-
-	setup_result_area() {
-		this.$result = $(`<div class="result">`);
-		this.$frappe_list.append(this.$result);
-	}
-
 	setup_paging_area() {
 		// pass
 	}
@@ -173,30 +164,8 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 	}
 
 	set_fields() {
-		// Fetch only required + Kanban Board configured fields (optimization: avoid fetching all doctype fields)
-		this.fields = [];
-		// Core: identity and column
-		this._add_field("name");
-		this._add_field("creation");
-		this._add_field(this.board.field_name, this.board.reference_doctype);
+		super.set_fields();
 		this._add_field(this.card_meta.title_field);
-		// Card UI: assignments, tags, like, comment count
-		this._add_field("_assign");
-		this._add_field("_user_tags");
-		this._add_field("_liked_by");
-		this._add_field("_comments");
-		this._add_field("owner");
-		// Kanban Board document's configured fields (card body content)
-		if (this.board.fields && Array.isArray(this.board.fields)) {
-			this.board.fields.forEach((field_spec) => {
-				const fieldname =
-					typeof field_spec === "string" ? field_spec : field_spec?.fieldname;
-				if (fieldname) this._add_field(fieldname);
-			});
-		}
-		// Optional: image and color if doctype has them
-		if (this.meta.image_field) this._add_field(this.meta.image_field);
-		if (frappe.meta.has_field(this.doctype, "color")) this._add_field("color");
 	}
 
 	before_render() {
@@ -240,7 +209,7 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 	}
 
 	get_fields() {
-		// board.field_name already added in set_fields(); just return built field list
+		this.fields.push([this.board.field_name, this.board.reference_doctype]);
 		return super.get_fields();
 	}
 

@@ -86,13 +86,8 @@ class DocumentPage(BaseTemplatePage):
 @redis_cache(ttl=60 * 60)
 def _find_matching_document_webview(route: str) -> tuple[str, str] | None:
 	for doctype in get_doctypes_with_web_view():
-		if not frappe.db.exists("DocType", doctype):
-			continue
 		filters = dict(route=route)
-		try:
-			meta = frappe.get_meta(doctype)
-		except frappe.DoesNotExistError:
-			continue
+		meta = frappe.get_meta(doctype)
 		condition_field = DocumentPage.get_condition_field(meta)
 
 		if condition_field:

@@ -7,7 +7,7 @@ from frappe.model import display_fieldtypes, no_value_fields
 from frappe.model import table_fields as table_fieldtypes
 from frappe.utils import flt, format_duration, groupby_metric
 from frappe.utils.csvutils import build_csv_response
-from frappe.utils.xlsxutils import build_xlsx_response, get_default_xlsx_styles
+from frappe.utils.xlsxutils import build_xlsx_response
 
 
 class Exporter:
@@ -19,7 +19,6 @@ class Exporter:
 		export_filters=None,
 		export_page_length=None,
 		file_type="CSV",
-		order_by=None,
 	):
 		"""
 		Exports records of a DocType for use with Importer
@@ -35,7 +34,6 @@ class Exporter:
 		self.export_filters = export_filters
 		self.export_page_length = export_page_length
 		self.file_type = file_type
-		self.order_by = order_by
 
 		# this will contain the csv content
 		self.csv_array = []
@@ -126,14 +124,14 @@ class Exporter:
 				raise frappe.PermissionError(
 					_("You are not allowed to export {} doctype").format(self.doctype)
 				)
+
 		for doc in data:
 			rows = []
 			rows = self.add_data_row(self.doctype, None, doc, rows, 0)
 			if table_fields:
 				# add child table data
 				for f in table_fields:
-					table_data = doc.get(f, []) or []
-					for i, child_row in enumerate(table_data):
+					for i, child_row in enumerate(doc.get(f, [])):
 						table_df = self.meta.get_field(f)
 						child_doctype = table_df.options
 						rows = self.add_data_row(child_doctype, child_row.parentfield, child_row, rows, i)
@@ -168,8 +166,6 @@ class Exporter:
 
 		if self.meta.is_nested_set():
 			order_by = "lft ASC"
-		elif self.order_by:
-			order_by = self.order_by
 		else:
 			order_by = "creation DESC"
 
@@ -257,17 +253,7 @@ class Exporter:
 		if self.file_type == "CSV":
 			build_csv_response(self.get_csv_array_for_export(), _(self.doctype))
 		elif self.file_type == "Excel":
-			data = self.get_csv_array_for_export()
-			styles = get_default_xlsx_styles(
-				columns=self.fields,
-				# exclude header row
-				data=data[1:],
-				# from the second child row onwards, parent values will be empty
-				# so currency value from parent doc may be absent, avoid inconsistency
-				currency_formatting=False,
-			)
-
-			build_xlsx_response(data, _(self.doctype), styles=styles)
+			build_xlsx_response(self.get_csv_array_for_export(), _(self.doctype))
 
 	def group_children_data_by_parent(self, children_data: dict[str, list]):
 		return groupby_metric(children_data, key="parent")
