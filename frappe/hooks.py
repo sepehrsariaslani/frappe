@@ -78,6 +78,15 @@ write_file_keys = ["file_url", "file_name"]
 
 notification_config = "frappe.core.notifications.get_notification_config"
 
+# Notification Types whose in-app Notification Log should NOT additionally send its own
+# email (e.g. "Alert" — the Notification rule already owns email delivery via its channel).
+notification_skip_email_types = ["Alert"]
+
+# Notification Types that are delivered even when the recipient is also the actor
+# (for_user == from_user). Other types suppress self-notifications.
+# TODO: This should not be hardcoded and a configurable option in future.
+notification_self_notify_types = ["Alert"]
+
 before_tests = "frappe.utils.install.before_tests"
 
 email_append_to = ["Event", "ToDo", "Communication"]
@@ -120,6 +129,8 @@ permission_query_conditions = {
 	"Prepared Report": "frappe.core.doctype.prepared_report.prepared_report.get_permission_query_condition",
 	"File": "frappe.core.doctype.file.file.get_permission_query_conditions",
 	"User Invitation": "frappe.core.doctype.user_invitation.user_invitation.get_permission_query_conditions",
+	"Tag Link": "frappe.desk.doctype.tag_link.tag_link.get_permission_query_conditions",
+	"Document Follow": "frappe.email.doctype.document_follow.document_follow.get_permission_query_conditions",
 }
 
 has_permission = {
@@ -137,7 +148,10 @@ has_permission = {
 	"File": "frappe.core.doctype.file.file.has_permission",
 	"Prepared Report": "frappe.core.doctype.prepared_report.prepared_report.has_permission",
 	"Notification Settings": "frappe.desk.doctype.notification_settings.notification_settings.has_permission",
+	"Dashboard Settings": "frappe.desk.doctype.dashboard_settings.dashboard_settings.has_permission",
+	"Notification Log": "frappe.desk.doctype.notification_log.notification_log.has_permission",
 	"User Invitation": "frappe.core.doctype.user_invitation.user_invitation.has_permission",
+	"Document Follow": "frappe.email.doctype.document_follow.document_follow.has_permission",
 }
 
 has_website_permission = {"Address": "frappe.contacts.doctype.address.address.has_website_permission"}
@@ -150,6 +164,8 @@ jinja = {
 		"frappe.website.utils.abs_url",
 	],
 }
+
+require_type_annotated_api_methods = True
 
 standard_queries = {"User": "frappe.core.doctype.user.user.user_query"}
 
@@ -303,6 +319,7 @@ after_migrate = [
 	"frappe.core.doctype.system_settings.system_theme.generate_system_theme_css",
 	"frappe.desk.doctype.workspace_sidebar.workspace_sidebar.sync_system_tools_sidebar",
 	"frappe.search.sqlite_search.build_index_in_background",
+	"frappe.desk.doctype.notification_type.notification_type.install_notification_types",
 ]
 
 otp_methods = ["OTP App", "Email", "SMS"]
@@ -520,6 +537,7 @@ default_log_clearing_doctypes = {
 	"OAuth Bearer Token": 30,
 	"API Request Log": 90,
 	"Email Queue Recipient": 30,  # this is added as a dummy placeholder and clearing is handled by Email Queue itself
+	"DuckDB Sync": 45,
 }
 
 # These keys will not be erased when doing frappe.clear_cache()
