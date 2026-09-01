@@ -83,6 +83,24 @@ context("Sidebar", () => {
 		});
 	});
 
+	it("Skips a sidebar link to a missing workspace", () => {
+		cy.visit("/desk");
+		cy.window().then((win) => {
+			const item = {
+				type: "Link",
+				link_type: "Workspace",
+				link_to: "Missing Workspace",
+			};
+
+			expect(() => {
+				new win.frappe.ui.sidebar_item.TypeLink({
+					item,
+					container: win.document.createElement("div"),
+				});
+			}).not.to.throw();
+		});
+	});
+
 	// it('Test for checking "Assigned To" counter value, adding filter and adding & removing an assignment', () => {
 	// 	cy.call("frappe.tests.ui_test_helpers.create_todo", {
 	// 		description: "Sidebar Attachment ToDo",
