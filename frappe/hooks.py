@@ -36,6 +36,7 @@ app_include_css = [
 	"desk.bundle.css",
 	"report.bundle.css",
 	"/files/frappe_system_theme.css",
+	"/assets/frappe/css/fonts/peyda/peyda.css",
 ]
 app_include_icons = [
 	"/assets/frappe/icons/lucide/icons.svg",
@@ -51,7 +52,10 @@ doctype_js = {
 }
 
 web_include_js = ["website_script.js"]
-web_include_css = ["/files/frappe_system_theme.css"]
+web_include_css = [
+	"/files/frappe_system_theme.css",
+	"/assets/frappe/css/fonts/peyda/peyda.css",
+]
 web_include_icons = [
 	"/assets/frappe/icons/lucide/icons.svg",
 	"/assets/frappe/icons/timeless/icons.svg",
