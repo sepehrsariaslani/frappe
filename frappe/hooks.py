@@ -329,7 +329,6 @@ before_migrate = ["frappe.core.doctype.patch_log.patch_log.before_migrate"]
 after_migrate = [
 	"frappe.website.doctype.website_theme.website_theme.after_migrate",
 	"frappe.core.doctype.system_settings.system_theme.generate_system_theme_css",
-	"frappe.desk.doctype.workspace_sidebar.workspace_sidebar.sync_system_tools_sidebar",
 	"frappe.search.sqlite_search.build_index_in_background",
 	"frappe.desk.doctype.notification_type.notification_type.install_notification_types",
 	"frappe.automation.doctype.automation_trigger_queue.automation_trigger_queue.ensure_dedup_indexes",
