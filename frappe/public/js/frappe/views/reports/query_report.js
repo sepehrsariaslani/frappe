@@ -764,16 +764,19 @@ frappe.views.QueryReport = class QueryReport extends frappe.views.BaseList {
 				clearInterval(this.interval);
 				clearInterval(this.stale_report_interval);
 				this.refreshed_at = frappe.datetime.now_datetime();
-				this.execution_time = data.execution_time || 0.1;
+					this.execution_time = data.execution_time || 0.1;
 
-				const check_if_report_is_stale = () => {
-					let generated_at = this.prepared_report
-						? this.prepared_report_document.report_end_time
-						: this.refreshed_at;
-					let pretty_diff = frappe.datetime.comment_when(generated_at);
-					const days_old = frappe.datetime.get_day_diff(
-						frappe.datetime.now_datetime(),
-						generated_at
+					const check_if_report_is_stale = () => {
+						let generated_at = this.prepared_report
+							? this.prepared_report_document?.report_end_time
+							: this.refreshed_at;
+						if (!generated_at) {
+							return;
+						}
+						let pretty_diff = frappe.datetime.comment_when(generated_at);
+						const days_old = frappe.datetime.get_day_diff(
+							frappe.datetime.now_datetime(),
+							generated_at
 					);
 					const minutes_old = frappe.datetime.get_minute_diff(
 						frappe.datetime.now_datetime(),
@@ -800,16 +803,16 @@ frappe.views.QueryReport = class QueryReport extends frappe.views.BaseList {
 					this.previous_filters = data.custom_filters;
 				}
 
-				if (data.prepared_report) {
-					this.prepared_report = true;
-					this.prepared_report_document = data.doc;
-					// If query_string contains prepared_report_name then set filters
-					// to match the mentioned prepared report doc and disable editing
-					if (this.prepared_report_name) {
-						const filters_from_report = JSON.parse(data.doc.filters);
-						Object.values(this.filters).forEach(function (field) {
-							if (filters_from_report[field.fieldname]) {
-								field.set_input(filters_from_report[field.fieldname]);
+					if (data.prepared_report) {
+						this.prepared_report = true;
+						this.prepared_report_document = data.doc || null;
+						// If query_string contains prepared_report_name then set filters
+						// to match the mentioned prepared report doc and disable editing
+						if (this.prepared_report_name && data.doc) {
+							const filters_from_report = JSON.parse(data.doc.filters);
+							Object.values(this.filters).forEach(function (field) {
+								if (filters_from_report[field.fieldname]) {
+									field.set_input(filters_from_report[field.fieldname]);
 							}
 							if (field.input) {
 								field.input.disabled = true;

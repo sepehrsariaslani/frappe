@@ -88,4 +88,28 @@ context("Query Report", () => {
 		save_report_and_open("Test ToDo Report 1", " 1");
 		save_report_and_open("Test ToDo Report 11", "1");
 	});
+
+	it("handles prepared reports without a document", () => {
+		cy.intercept("GET", "**/api/method/frappe.desk.query_report.run*", (req) => {
+			if (req.query.report_name === "Test ToDo Report") {
+				req.reply({
+					statusCode: 200,
+					body: {
+						message: {
+							prepared_report: true,
+							doc: null,
+							add_total_row: true,
+						},
+					},
+				});
+			}
+		}).as("runPreparedReport");
+
+		cy.visit("/desk/query-report/Test ToDo Report");
+		cy.wait("@runPreparedReport");
+		cy.contains(
+			"#page-query-report",
+			"This is a background report. Please set the appropriate filters and then generate a new one."
+		).should("be.visible");
+	});
 });

@@ -22,6 +22,28 @@ def is_enabled() -> bool:
 	)
 
 
+@frappe.whitelist(allow_guest=True)
+def boot_config() -> dict:
+	"""Return the Pulse browser configuration for frappe-ui applications."""
+	if not is_enabled():
+		return {"enabled": False}
+
+	host = ensure_http(frappe.conf.get("pulse_host") or "https://pulse.m.frappe.cloud").rstrip("/")
+	session_user = frappe.session.user
+	if session_user in frappe.STANDARD_USERS:
+		session_user = None
+
+	return {
+		"enabled": True,
+		"host": host,
+		"client_url": f"{host}/assets/pulse/js/pulse_client.js",
+		"key": frappe.conf.get("pulse_api_key"),
+		"site": frappe.local.site,
+		"user": anonymize_user(session_user),
+		"team": None,
+	}
+
+
 @frappe.whitelist()
 def capture(event_name, site=None, app=None, user=None, captured_at=None, properties=None, interval=None):
 	if not is_enabled():

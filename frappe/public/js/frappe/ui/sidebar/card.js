@@ -1,7 +1,7 @@
 import { createPopper } from "@popperjs/core";
 frappe.provide("frappe.ui");
 // icon, title, message, condition, primary_action_label, primary_action
-frappe.ui.SidebarCard = class SidebarCard {
+frappe.ui.Card = class Card {
 	constructor(opts) {
 		Object.assign(this, opts);
 		this.alignment_style_map = {
@@ -23,7 +23,7 @@ frappe.ui.SidebarCard = class SidebarCard {
 			this.icon = "info";
 		}
 		this.card = $(
-			frappe.render_template("sidebar_card", {
+			frappe.render_template("card", {
 				card: this,
 			})
 		);
@@ -51,7 +51,7 @@ frappe.ui.SidebarCard = class SidebarCard {
 			});
 		}
 		if (this.outline) {
-			this.card.addClass("card-outline");
+			this.card.addClass("frappe-card-outline");
 			this.card.removeClass("px-2 py-2");
 		}
 		this.card.prependTo(this.parent);
@@ -87,7 +87,7 @@ frappe.ui.SidebarCard = class SidebarCard {
 	}
 	setup_primary_action() {
 		const me = this;
-		this.card.find(".sidebar-card-button").on("click", function (event) {
+		this.card.find(".frappe-card-button").on("click", function (event) {
 			event.preventDefault();
 			me.primary_action(event);
 		});
@@ -117,8 +117,9 @@ frappe.ui.SidebarCard = class SidebarCard {
 	set_button_alignment() {
 		if (this.primary_button_alignment) {
 			this.card
-				.find(".sidebar-card-actions")
+				.find(".frappe-card-actions")
 				.css("justifyContent", this.alignment_style_map[this.primary_button_alignment]);
 		}
 	}
 };
+frappe.ui.SidebarCard = frappe.ui.Card;

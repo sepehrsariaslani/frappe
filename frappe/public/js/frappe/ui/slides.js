@@ -398,13 +398,19 @@ frappe.ui.Slides = class Slides {
 			.find(".next-btn")
 			.attr("tabIndex", 0)
 			.on("click", () => {
+				if (this.unidirectional && !this.current_slide) {
+					const current_id = this.current_id ?? 0;
+					if (!this.slide_dict[current_id]) return;
+					this.show_slide(current_id);
+				}
+
 				if (this.done_state) {
 					if (this.slide) this.slide.done = true;
 					if (this.current_slide) this.current_slide.done = true;
 				}
 				if (
 					!this.unidirectional ||
-					(this.unidirectional && this.current_slide.set_values())
+					(this.unidirectional && this.current_slide && this.current_slide.set_values())
 				) {
 					this.show_slide(this.current_id + 1);
 				}

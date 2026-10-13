@@ -61,6 +61,10 @@ def get_permission_query_conditions(for_user):
 	return f"""(`tabNotification Log`.for_user = {frappe.db.escape(for_user)})"""
 
 
+def get_skip_email_types() -> set[str]:
+	return set(frappe.get_hooks("notification_skip_email_types") or [])
+
+
 def get_title(doctype, docname, title_field=None):
 	if not title_field:
 		title_field = frappe.get_meta(doctype).get_title_field()

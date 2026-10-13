@@ -32,7 +32,8 @@ frappe.setup = {
 
 frappe.pages["setup-wizard"].on_page_load = function (wrapper) {
 	if (frappe.boot.setup_complete) {
-		window.location.href = frappe.boot.apps_data.default_path || "/desk";
+		window.location.replace(frappe.boot.apps_data.default_path || "/desk");
+		return;
 	}
 	let requires = frappe.boot.setup_wizard_requires || [];
 	frappe.require(requires, function () {
@@ -71,6 +72,10 @@ frappe.pages["setup-wizard"].on_page_load = function (wrapper) {
 };
 
 frappe.pages["setup-wizard"].on_page_show = function () {
+	if (frappe.boot.setup_complete) {
+		window.location.replace(frappe.boot.apps_data.default_path || "/desk");
+		return;
+	}
 	frappe.wizard && frappe.wizard.show_slide(cint(frappe.get_route()[1]));
 };
 
@@ -233,12 +238,14 @@ frappe.setup.SetupWizard = class SetupWizard extends frappe.ui.Slides {
 		}
 		setTimeout(function () {
 			// Reload
-			let current_route = localStorage.current_route;
+			let current_route = localStorage.current_route || "";
+			let default_route = frappe.boot.apps_data.default_path || "/desk";
+			let is_setup_wizard_route = /(^|\/)setup-wizard(?:\/|$)/.test(current_route);
 
 			localStorage.current_route = "";
 			localStorage.current_app = "";
 
-			window.location.href = current_route || frappe.boot.apps_data.default_path || "/desk";
+			window.location.replace(is_setup_wizard_route ? default_route : current_route || default_route);
 		}, 2000);
 	}
 
