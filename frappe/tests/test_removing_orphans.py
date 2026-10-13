@@ -1,7 +1,28 @@
+import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
 import frappe
 from frappe.model.sync import remove_orphan_entities
 from frappe.modules.export_file import delete_folder
 from frappe.tests import IntegrationTestCase
+
+
+class TestRemovingOrphanEntityIteration(unittest.TestCase):
+	def test_walks_explicit_entity_list_without_database_access(self):
+		fake_frappe = SimpleNamespace(
+			get_all=Mock(return_value=[]),
+			db=SimpleNamespace(commit=Mock()),
+			delete_doc=Mock(),
+		)
+		with (
+			patch("frappe.model.sync.create_entity_file_map", return_value={"Sidebar": {}}),
+			patch("frappe.model.sync.frappe", fake_frappe),
+		):
+			remove_orphan_entities("Sidebar")
+
+		fake_frappe.get_all.assert_called_once_with("Sidebar", filters={"standard": True}, fields=["name"])
+		fake_frappe.db.commit.assert_called_once_with()
 
 
 class TestRemovingOrphans(IntegrationTestCase):

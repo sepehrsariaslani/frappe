@@ -300,7 +300,7 @@ def remove_orphan_entities(entity_types=None):
 	# like an orphan, so asking to reap one entity deleted all of another.
 	entity_file_map = create_entity_file_map(entities)
 
-	for entity in entites:
+	for entity in entities:
 		print(f"Removing orphan {entity}s")
 		# `name` and nothing else. The module was never read in the loop below, and selecting
 		# it means an entity with no `module` column, or one whose rows may leave it blank,
