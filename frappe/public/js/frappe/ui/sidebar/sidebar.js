@@ -69,8 +69,6 @@ frappe.ui.Sidebar = class Sidebar {
 		this.items = [];
 		this.cards = [];
 		this.setup_events();
-		this.sidebar_module_map = {};
-		this.build_sidebar_module_map();
 		this.standard_items_setup = false;
 	}
 
