@@ -4,9 +4,15 @@ from unittest.mock import patch
 import frappe
 import frappe.integrations.utils
 import frappe.utils.safe_exec as safe_exec_utils
-from frappe.tests import IntegrationTestCase
+from frappe.tests import IntegrationTestCase, UnitTestCase
 from frappe.utils.jinja import get_jenv, get_jinja_hooks, render_template
 from frappe.utils.safe_exec import SafeDoc, ServerScriptNotEnabled, get_safe_globals, safe_exec
+
+
+class TestRenderSafeGlobals(UnitTestCase):
+	def test_render_safe_globals_exposes_identicon(self):
+		identicon = get_safe_globals().frappe.get_identicon("developer@example.com")
+		self.assertTrue(identicon.startswith("data:image/png;base64,"))
 
 
 class TestSafeExec(IntegrationTestCase):
