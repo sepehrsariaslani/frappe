@@ -288,9 +288,6 @@ class Document(BaseDocument):
 		if hasattr(self, "__setup__"):
 			self.__setup__()
 
-		if not is_doctype:
-			self.mask_fields()
-
 		return self
 
 	def mask_fields(self):
