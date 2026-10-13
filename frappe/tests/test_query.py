@@ -770,6 +770,15 @@ class TestQuery(IntegrationTestCase):
 		# Format decendants result
 		descendants_result = list(itertools.chain.from_iterable(descendants_result))
 		self.assertListEqual(descendants_result, get_descendants_of("Test Tree DocType", "Parent 1"))
+		self.assertListEqual(
+			frappe.get_all(
+				"Test Tree DocType",
+				filters={"name": ("Descendants Of", "Parent 1")},
+				order_by="creation desc",
+				pluck="name",
+			),
+			get_descendants_of("Test Tree DocType", "Parent 1"),
+		)
 
 		ancestors_result = frappe.qb.get_query(
 			"Test Tree DocType",
@@ -1061,6 +1070,60 @@ class TestQuery(IntegrationTestCase):
 			ignore_permissions=False,
 		).run(as_dict=True)
 		self.assertTrue(len(result) > 0, "Should be able to filter User by user_type and enabled")
+
+	def test_core_doctype_filterable_fields_with_read_and_select_permission(self):
+		"""Read+select on User should still allow filtering by user_type."""
+		test_role = "CoreReadSelectTestRole"
+		test_user_email = "test2@example.com"
+
+		frappe.set_user("Administrator")
+		test_user = frappe.get_doc("User", test_user_email)
+		test_user.remove_roles(test_role)
+		frappe.delete_doc("Role", test_role, ignore_missing=True, force=True)
+
+		frappe.get_doc({"doctype": "Role", "role_name": test_role}).insert(ignore_if_duplicate=True)
+		# read defaults to 1 on a new Custom DocPerm row — leave it on, unlike the
+		# select-only test above, so both read and select are granted at once.
+		add_permission("User", test_role, 0, ptype="select")
+		test_user.add_roles(test_role)
+
+		def cleanup():
+			frappe.set_user("Administrator")
+			test_user.remove_roles(test_role)
+			frappe.delete_doc("Role", test_role, ignore_missing=True, force=True)
+
+		self.addCleanup(cleanup)
+
+		frappe.set_user(test_user_email)
+
+		self.assertFalse(
+			frappe.only_has_select_perm("User"),
+			"Sanity check: user should have read as well as select, not select-only",
+		)
+
+		# filter by user_type and enabled — the exact filters used by search_link for assignment
+		result = frappe.qb.get_query(
+			"User",
+			filters={"user_type": "System User", "enabled": 1},
+			fields=["name"],
+			ignore_permissions=False,
+		).run(as_dict=True)
+		self.assertTrue(
+			len(result) > 0,
+			"Should be able to filter User by user_type and enabled with read+select permission",
+		)
+
+		# the exemption is filter-only - explicitly requesting user_type as an output
+		# field should not return its value (field-level read permission drops it silently)
+		qb_result = frappe.qb.get_query("User", fields=["name", "user_type"], ignore_permissions=False).run(
+			as_dict=True
+		)
+		self.assertTrue(qb_result)
+		self.assertNotIn("user_type", qb_result[0])
+
+		list_result = frappe.get_list("User", fields=["name", "user_type"], limit=3)
+		self.assertTrue(list_result)
+		self.assertNotIn("user_type", list_result[0])
 
 	def test_nested_permission(self):
 		"""Test permission on nested doctypes"""
@@ -2481,6 +2544,215 @@ class TestQuery(IntegrationTestCase):
 		engine = Engine()
 		self.assertEqual(engine._get_ifnull_fallback("Patch Log", "skipped"), "0")
 		self.assertEqual(engine._get_ifnull_fallback("Patch Log", "patch"), "''")
+
+	@run_only_if(db_type_is.MARIADB)
+	def test_drop_unique_constraint_for_deleted_fields_mariadb(self):
+		trial_dt = new_doctype(
+			"Trial Doctype",
+			fields=[
+				{
+					"fieldname": "field_one",
+					"fieldtype": "Data",
+					"label": "Field One",
+				},
+				{
+					"fieldname": "field_two",
+					"fieldtype": "Data",
+					"label": "Field Two",
+					"unique": 1,
+				},
+			],
+		)
+
+		trial_dt.insert(ignore_if_duplicate=True)
+
+		indexes = frappe.db.get_column_index("tabTrial Doctype", "field_two", unique=True)
+		self.assertTrue(indexes)
+
+		field_to_remove = None
+
+		for field in trial_dt.fields:
+			if field.fieldname == "field_two":
+				field_to_remove = field
+				break
+
+		trial_dt.fields.remove(field_to_remove)
+		trial_dt.save()
+
+		indexes = frappe.db.get_column_index("tabTrial Doctype", "field_two", unique=True)
+		self.assertFalse(indexes)
+
+	@run_only_if(db_type_is.POSTGRES)
+	def test_drop_unique_constraint_and_indexes_for_deleted_fields_postgres(self):
+		# test for unique index backed by constraint at field creation time
+		trial_dt = new_doctype(
+			"Trial Doctype",
+			fields=[
+				{
+					"fieldname": "field_one",
+					"fieldtype": "Data",
+					"label": "Field One",
+				},
+				{
+					"fieldname": "field_two",
+					"fieldtype": "Data",
+					"label": "Field Two",
+					"unique": 1,
+				},
+			],
+		)
+
+		trial_dt.insert(ignore_if_duplicate=True)
+
+		index_exists = frappe.db.sql(
+			"""
+			SELECT 1
+			FROM pg_indexes
+			WHERE tablename = %s
+			AND indexname = %s
+			""",
+			(
+				f"tab{trial_dt.name}",
+				f"tab{trial_dt.name}_field_two_key",
+			),
+		)
+		self.assertTrue(index_exists)
+
+		field_to_remove = None
+
+		for field in trial_dt.fields:
+			if field.fieldname == "field_two":
+				field_to_remove = field
+				break
+
+		trial_dt.fields.remove(field_to_remove)
+		trial_dt.save()
+
+		index_exists = frappe.db.sql(
+			"""
+			SELECT 1
+			FROM pg_indexes
+			WHERE tablename = %s
+			AND indexname = %s
+			""",
+			(
+				f"tab{trial_dt.name}",
+				f"tab{trial_dt.name}_field_two_key",
+			),
+		)
+		self.assertFalse(index_exists)
+
+		# test for unique index backed by no constraint created at field alteration post creation
+		for field in trial_dt.fields:
+			if field.fieldname == "field_one":
+				field.unique = 1
+
+		trial_dt.save()
+
+		index_exists = frappe.db.sql(
+			"""
+			SELECT 1
+			FROM pg_indexes
+			WHERE tablename = %s
+			AND indexname = %s
+			""",
+			(
+				f"tab{trial_dt.name}",
+				"unique_field_one",
+			),
+		)
+		self.assertTrue(index_exists)
+
+		field_to_remove = None
+
+		for field in trial_dt.fields:
+			if field.fieldname == "field_one":
+				field_to_remove = field
+				break
+
+		trial_dt.fields.remove(field_to_remove)
+		trial_dt.save()
+
+		index_exists = frappe.db.sql(
+			"""
+			SELECT 1
+			FROM pg_indexes
+			WHERE tablename = %s
+			AND indexname = %s
+			""",
+			(
+				f"tab{trial_dt.name}",
+				"unique_field_one",
+			),
+		)
+		self.assertFalse(index_exists)
+
+	def test_limit_offset_query(self):
+		"""Test if query builder correctly uses limit with offset in MariaDB and SQLite when limit is omitted."""
+		from frappe.database.query import MAX_LIMIT
+
+		query = frappe.qb.get_query("Doctype", offset=10).get_sql()
+		if frappe.db.db_type != "postgres":
+			self.assertIn(f"LIMIT {MAX_LIMIT} OFFSET 10", query)
+			query = frappe.qb.get_query("Doctype", limit=10, offset=10).get_sql()
+			self.assertIn("LIMIT 10 OFFSET 10", query)
+		else:
+			self.assertNotIn("LIMIT", query)
+			self.assertIn("OFFSET 10", query)
+
+	@run_only_if(db_type_is.MARIADB)
+	def test_build_filter_conditions_escapes_backslash_safely(self):
+		"""A filter value ending in a backslash must not let its string literal
+		swallow the next condition as live SQL.
+
+		Engine.build_filter_conditions renders filter values via pypika, which
+		only doubles quote characters, not backslashes. On MariaDB's default
+		sql_mode a trailing backslash escapes the closing quote, so two chained
+		filters on the same field could splice arbitrary SQL into the
+		surrounding WHERE clause.
+		"""
+		from frappe.database.query import Engine
+
+		bs = chr(92)  # a single backslash
+		tail = " or sleep(0) -- "
+
+		engine = Engine()
+		engine.get_query("DocType", db_query_compat=True)
+		conditions = []
+		engine.build_filter_conditions(
+			[
+				["DocType", "name", "=", bs],
+				["DocType", "name", "=", tail],
+			],
+			conditions,
+		)
+		cond = " and ".join(conditions)
+
+		# The backslash must be doubled so it stays inside its own literal
+		# instead of escaping the closing quote and exposing `tail` as code.
+		self.assertIn(f"'{bs * 2}'", cond)
+		self.assertIn(f"='{tail}'", cond)
+
+		# The fragment must still be syntactically valid, harmless SQL.
+		frappe.db.sql(f"SELECT name FROM `tabDocType` WHERE 1=1 and {cond} LIMIT 0")
+
+	@run_only_if(db_type_is.MARIADB)
+	def test_build_filter_conditions_matches_literal_backslash_value(self):
+		"""A filter value that genuinely contains a backslash
+		must still match the row it's meant to after the escaping fix."""
+		from frappe.database.query import Engine
+
+		todo = frappe.get_doc({"doctype": "ToDo", "description": r"C:\Users\test"}).insert()
+		self.addCleanup(todo.delete)
+
+		engine = Engine()
+		engine.get_query("ToDo", db_query_compat=True)
+		conditions = []
+		engine.build_filter_conditions([["ToDo", "description", "=", r"C:\Users\test"]], conditions)
+		cond = " and ".join(conditions)
+
+		rows = frappe.db.sql(f"SELECT name FROM `tabToDo` WHERE 1=1 and {cond}", as_dict=True)
+		self.assertIn(todo.name, [r.name for r in rows])
 
 
 # This function is used as a permission query condition hook

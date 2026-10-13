@@ -1,7 +1,6 @@
 import "./assign_to";
 import "./attachments";
 import "./share";
-import "./document_follow";
 import "./user_image";
 import "./form_sidebar_users";
 import { get_user_link, get_user_message } from "../footer/version_timeline_content_builder";
@@ -151,7 +150,10 @@ frappe.ui.form.Sidebar = class {
 					__("Last Edited by {0}", [get_user_link(this.frm.doc.modified_by)])
 				) +
 					" <br> " +
-					comment_when(this.frm.doc.modified)
+					(cint(frappe.boot.user.show_absolute_datetime_in_timeline) ||
+					frappe.defaults.is_enabled("show_absolute_datetime_in_timeline")
+						? frappe.datetime.str_to_user(this.frm.doc.modified)
+						: comment_when(this.frm.doc.modified))
 			);
 		this.sidebar
 			.find(".created-by")
@@ -162,7 +164,10 @@ frappe.ui.form.Sidebar = class {
 					__("Created By {0}", [get_user_link(this.frm.doc.owner)])
 				) +
 					" <br> " +
-					comment_when(this.frm.doc.creation)
+					(cint(frappe.boot.user.show_absolute_datetime_in_timeline) ||
+					frappe.defaults.is_enabled("show_absolute_datetime_in_timeline")
+						? frappe.datetime.str_to_user(this.frm.doc.creation)
+						: comment_when(this.frm.doc.creation))
 			);
 	}
 

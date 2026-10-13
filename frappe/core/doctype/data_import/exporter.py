@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.model import display_fieldtypes, no_value_fields
+from frappe.model import display_fieldtypes, get_permitted_fields, no_value_fields
 from frappe.model import table_fields as table_fieldtypes
 from frappe.utils import flt, format_duration, groupby_metric
 from frappe.utils.csvutils import build_csv_response
@@ -38,6 +38,9 @@ class Exporter:
 		# this will contain the csv content
 		self.csv_array = []
 
+		# tables an import provider adds that are not child tables of the DocType (e.g. Contact)
+		self.provider_tables = self.get_provider_tables()
+
 		# fields that get exported
 		self.exportable_fields = self.get_all_exportable_fields()
 		self.fields = self.serialize_exportable_fields()
@@ -49,8 +52,25 @@ class Exporter:
 			self.data = []
 		self.add_data()
 
+	def get_provider_tables(self):
+		from frappe.core.doctype.data_import.import_provider import get_import_provider
+
+		provider = get_import_provider(self.doctype)
+		schema = provider.get_import_fields() if provider else None
+		return {
+			table["fieldname"]: table
+			for table in (schema or {}).get("child_tables") or []
+			if not self.meta.get_field(table["fieldname"])
+		}
+
 	def get_all_exportable_fields(self):
-		child_table_fields = [df.fieldname for df in self.meta.fields if df.fieldtype in table_fieldtypes]
+		permitted_levels = set(self.meta.get_permlevel_access("read"))
+		child_table_fields = [
+			df.fieldname
+			for df in self.meta.fields
+			if df.fieldtype in table_fieldtypes
+			and (not self.meta.get_permissions() or df.permlevel in permitted_levels)
+		]
 
 		meta = frappe.get_meta(self.doctype)
 		exportable_fields = frappe._dict({})
@@ -66,6 +86,14 @@ class Exporter:
 				child_doctype = child_df.options
 				exportable_fields[key] = self.get_exportable_fields(child_doctype, fieldnames)
 
+			elif key in self.provider_tables:
+				exportable_fields[key] = [
+					frappe._dict(df)
+					for df in self.provider_tables[key]["fields"]
+					if df["fieldname"] in fieldnames
+					and df.get("fieldtype") not in (display_fieldtypes + no_value_fields)
+				]
+
 		return exportable_fields
 
 	def serialize_exportable_fields(self):
@@ -80,12 +108,17 @@ class Exporter:
 
 				df.is_child_table_field = key != self.doctype
 				if df.is_child_table_field:
-					df.child_table_df = self.meta.get_field(key)
+					df.child_table_df = self.meta.get_field(key) or frappe._dict(
+						fieldname=key, label=self.provider_tables[key].get("label")
+					)
 				fields.append(df)
 		return fields
 
 	def get_exportable_fields(self, doctype, fieldnames):
 		meta = frappe.get_meta(doctype)
+		permitted_fields = set(
+			get_permitted_fields(doctype, parenttype=self.doctype if meta.istable else None)
+		)
 
 		def is_exportable(df):
 			return df and df.fieldtype not in (display_fieldtypes + no_value_fields)
@@ -101,7 +134,7 @@ class Exporter:
 			}
 		)
 
-		fields = [meta.get_field(fieldname) for fieldname in fieldnames]
+		fields = [meta.get_field(fieldname) for fieldname in fieldnames if fieldname in permitted_fields]
 		fields = [df for df in fields if is_exportable(df)]
 
 		if "name" in fieldnames:
@@ -182,7 +215,8 @@ class Exporter:
 
 		child_data = {}
 		for key in self.exportable_fields:
-			if key == self.doctype:
+			# provider tables are not stored on the record, so their columns stay blank
+			if key == self.doctype or key in self.provider_tables:
 				continue
 			child_table_df = self.meta.get_field(key)
 			child_table_doctype = child_table_df.options
@@ -193,8 +227,9 @@ class Exporter:
 				"parentfield",
 				*list({format_column_name(df) for df in self.fields if df.parent == child_table_doctype}),
 			]
-			data = frappe.get_all(
+			data = frappe.get_list(
 				child_table_doctype,
+				parent_doctype=self.doctype,
 				filters={
 					"parent": ("in", parent_names),
 					"parentfield": child_table_df.fieldname,

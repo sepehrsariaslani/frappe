@@ -960,6 +960,13 @@ def print_language(language: str):
 	    html = frappe.get_print(...)
 	```
 	"""
+	# a background job resolves its user's language on the first translation, which
+	# would undo the requested one mid-print — settle it before switching
+	job = getattr(frappe.local, "job", None)
+	if job is not None and not job.lang_resolved:
+		frappe.set_user_lang(job.user)
+		job.lang_resolved = True
+
 	if not language or language == frappe.local.lang:
 		# do nothing
 		yield
@@ -973,11 +980,12 @@ def print_language(language: str):
 	frappe.local.lang = language
 	frappe.local.jenv = None
 
-	yield
-
-	# restore original values
-	frappe.local.lang = _lang
-	frappe.local.jenv = _jenv
+	try:
+		yield
+	finally:
+		frappe.local.lang = _lang
+		frappe.local.jenv_restricted = _jenv_restricted
+		frappe.local.jenv_unrestricted = _jenv_unrestricted
 
 
 # Backward compatibility

@@ -15,6 +15,7 @@ from werkzeug.exceptions import NotFound
 
 import frappe
 from frappe import _, is_whitelisted, msgprint
+from frappe.automation_engine.dispatch import run_automations
 from frappe.core.doctype.file.utils import relink_mismatched_files
 from frappe.core.doctype.server_script.server_script_utils import run_server_script_for_doc_event
 from frappe.database.utils import commit_after_response
@@ -293,13 +294,26 @@ class Document(BaseDocument):
 		return self
 
 	def mask_fields(self):
-		from frappe.model.db_query import mask_field_value
+		from frappe.model.utils.mask import mask_field_value
 
 		mask_fields = frappe.get_meta(self.doctype).get_masked_fields()
 
 		for field in mask_fields:
 			val = self.get(field.fieldname)
 			self.set(field.fieldname, mask_field_value(field, val))
+
+		for table_field in self.meta.get_table_fields():
+			child_mask_fields = frappe.get_meta(table_field.options).get_masked_fields(
+				parenttype=self.doctype
+			)
+			if not child_mask_fields:
+				continue
+
+			masked_fieldnames = {field.fieldname for field in child_mask_fields}
+			for row in self.get(table_field.fieldname) or []:
+				row.flags.masked_fieldnames = masked_fieldnames
+				for field in child_mask_fields:
+					row.set(field.fieldname, mask_field_value(field, row.get(field.fieldname)))
 
 	def load_children_from_db(self):
 		is_doctype = self.doctype == "DocType"
@@ -598,7 +612,8 @@ class Document(BaseDocument):
 					"file_name": attach_item.file_name,
 					"attached_to_name": self.name,
 					"attached_to_doctype": self.doctype,
-					"folder": "Home/Attachments",
+					"attached_to_field": attach_item.attached_to_field,
+					"folder": attach_item.folder or "Home/Attachments",
 					"is_private": attach_item.is_private,
 				}
 			)
@@ -789,7 +804,6 @@ class Document(BaseDocument):
 		self._validate_data_fields()
 		self._validate_selects()
 		self._validate_non_negative()
-		self._validate_length()
 		self._fix_rating_value()
 		self._validate_code_fields()
 		self._sync_autoname_field()
@@ -797,18 +811,19 @@ class Document(BaseDocument):
 		self._sanitize_content()
 		self._save_passwords()
 		self.validate_workflow()
+		self._validate_length()
 
 		for d in self.get_all_children():
 			d._validate_data_fields()
 			d._validate_selects()
 			d._validate_non_negative()
-			d._validate_length()
 			d._fix_rating_value()
 			d._validate_code_fields()
 			d._sync_autoname_field()
 			d._extract_images_from_text_editor()
 			d._sanitize_content()
 			d._save_passwords()
+			d._validate_length()
 		if self.is_new():
 			# don't set fields like _assign, _comments for new doc
 			for fieldname in optional_fields:
@@ -942,6 +957,40 @@ class Document(BaseDocument):
 					for child in self.get(table_field.fieldname) or []:
 						if hasattr(child, df.fieldname):
 							delattr(child, df.fieldname)
+
+		self.mask_fields()
+
+	def _restore_masked_fields_from_db(self):
+		"""Restore masked field values from DB so that link-field user-permission checks
+		are not tripped by the XXXXXXXX placeholder sent from the client."""
+		if frappe.flags.in_install or frappe.session.user == "Administrator" or self.is_new():
+			return
+
+		mask_fields = self.meta.get_masked_fields()
+		child_mask_fields = {
+			table_field.fieldname: masked
+			for table_field in self.meta.get_table_fields()
+			if (masked := frappe.get_meta(table_field.options).get_masked_fields(parenttype=self.doctype))
+		}
+		if not mask_fields and not child_mask_fields:
+			return
+
+		# frappe.db.get_value() goes through the query builder which re-masks results for
+		# non-admin users, returning XXXXXXXX. frappe.get_doc() uses load_from_db() which
+		# queries the DB directly and always returns the actual stored value.
+		db_doc = frappe.get_doc(self.doctype, self.name)
+		for df in mask_fields:
+			self.set(df.fieldname, db_doc.get(df.fieldname))
+
+		for fieldname, masked in child_mask_fields.items():
+			db_rows = {row.name: row for row in db_doc.get(fieldname)}
+			for row in self.get(fieldname) or []:
+				db_row = db_rows.get(row.name)
+				# new rows have no DB counterpart — nothing to restore
+				if not db_row:
+					continue
+				for df in masked:
+					row.set(df.fieldname, db_row.get(df.fieldname))
 
 	def validate_higher_perm_levels(self):
 		"""If the user does not have permissions at permlevel > 0, then reset the values to original / default"""
@@ -1186,6 +1235,7 @@ class Document(BaseDocument):
 		self.run_notifications(method)
 		run_webhooks(self, method)
 		run_server_script_for_doc_event(self, method)
+		run_automations(self, method)
 
 		return out
 
@@ -2017,11 +2067,18 @@ def unlock_document(doctype: str, name: str):
 	frappe.msgprint(frappe._("Document Unlocked"), alert=True)
 
 
-def get_lazy_controller(doctype):
-	lazy_controllers = frappe.lazy_controllers.setdefault(frappe.local.site, {})
+def get_lazy_controller(doctype, *, site=None, meta=None, controller=None):
+	"""Return the lazy-loading controller class for a doctype.
+
+	`site`, `meta` and `controller` default to the current context. They can be passed
+	explicitly during unpickling, where the pickled document must be reconstructed with the
+	same schema it was pickled with and no frappe.local context is available.
+	"""
+	lazy_controllers = frappe.lazy_controllers.setdefault(site or frappe.local.site, {})
 	if doctype not in lazy_controllers:
-		meta = frappe.get_meta(doctype)
-		original_controller = get_controller(doctype)
+		if meta is None:
+			meta = frappe.get_meta(doctype)
+		original_controller = controller or get_controller(doctype)
 		if meta.is_virtual:  # not supported
 			lazy_controllers[doctype] = original_controller
 			warnings.warn("Virtual doctypes don't support lazy loading", stacklevel=2)
@@ -2036,8 +2093,29 @@ def get_lazy_controller(doctype):
 	return lazy_controllers[doctype]
 
 
+def _reconstruct_lazy_doc(site: str, doctype: str, meta, original_controller):
+	"""Reconstruct a lazy document instance during unpickling.
+
+	The lazy controller class is created dynamically, so pickle can't find it by name.
+	Rebuild it from the pickled site, meta and original controller instead, without making
+	any frappe calls that require an initialized frappe.local.
+	"""
+	controller = get_lazy_controller(doctype, site=site, meta=meta, controller=original_controller)
+	return controller.__new__(controller)
+
+
 class LazyDocument:
 	"""Mixin for Document class that implments lazy loading for child tables."""
+
+	def __reduce__(self):
+		"""Make dynamically created lazy controller instances pickle-able."""
+		# Lazy controller is type("Lazy...", (LazyDocument, original_controller), {})
+		original_controller = type(self).__bases__[1]
+		return (
+			_reconstruct_lazy_doc,
+			(frappe.local.site, self.doctype, self.meta, original_controller),
+			self.__getstate__(),
+		)
 
 	@override
 	def load_children_from_db(self: Document):

@@ -4,7 +4,8 @@
 // link validation
 // custom queries
 // add_fetches
-import Awesomplete from "awesomplete";
+import Awesomplete from "../../ui/awesomplete";
+
 frappe.ui.form.recent_link_validations = {};
 
 frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlData {
@@ -15,7 +16,7 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			<input type="text" class="input-with-feedback form-control">
 			<span class="link-btn">
 				<a class="btn-clear" style="display: inline-flex;" title="${__("Clear Link")}">
-					${frappe.utils.icon("close", "xs", "es-icon")}
+					${frappe.utils.icon("x", "xs")}
 				</a>
 				<a class="btn-open" style="display: inline-flex;" title="${__("Open Link")}">
 					${frappe.utils.icon("arrow-right", "xs")}
@@ -82,7 +83,7 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 	}
 
 	is_clear_button_enabled() {
-		return Boolean(cint(frappe.boot?.sysdefaults?.allow_clearing_link_fields));
+		return frappe.defaults.is_enabled("allow_clearing_link_fields");
 	}
 
 	hide_link_and_clear_buttons() {
@@ -390,9 +391,12 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 	 * @returns {boolean} - True if input matches the label, value, or description.
 	 */
 	input_matches_item(input, item) {
-		const item_label = (this.get_translated(item.label || item.value) || "").toLowerCase();
-		const item_description = (item.description || "").toLowerCase();
-		return input && (item_label.includes(input) || item_description.includes(input));
+		return (
+			input &&
+			[this.get_translated(item.label ?? item.value), item.value, item.description].some(
+				(value) => cstr(value).toLowerCase().includes(input)
+			)
+		);
 	}
 
 	/**
@@ -476,7 +480,7 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			cache: use_get,
 			args: args,
 			callback: async (r) => {
-				if (!window.Cypress && !this.$input.is(":focus")) {
+				if (!window.Cypress && !navigator.webdriver && !this.$input.is(":focus")) {
 					return;
 				}
 				r.message = this.merge_duplicates(r.message);
@@ -501,7 +505,8 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 						r.message.push({
 							html:
 								"<span class='link-option'>" +
-								"<i class='fa fa-plus' style='margin-right: 5px;'></i> " +
+								frappe.utils.icon("plus", "sm", "", "margin-right: 5px;") +
+								" " +
 								__("Create a new {0}", [__(this.get_options())]) +
 								"</span>",
 							label: __("Create a new {0}", [__(this.get_options())]),
@@ -525,7 +530,8 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 						r.message.push({
 							html:
 								"<span class='link-option'>" +
-								"<i class='fa fa-search' style='margin-right: 5px;'></i> " +
+								frappe.utils.icon("search", "sm", "", "margin-right: 5px;") +
+								" " +
 								__("Advanced Search") +
 								"</span>",
 							label: __("Advanced Search"),
@@ -847,6 +853,26 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			if (!args.filters) args.filters = {};
 			$.extend(args.filters, this.df.filters);
 		}
+
+		if (this.df.link_filters && !!this.df.link_filters.length) {
+			const link_filters = this.apply_link_field_filters();
+
+			if (Array.isArray(args.filters)) {
+				const doctype = this.get_options();
+				const fieldnames = Object.keys(link_filters);
+				args.filters = args.filters
+					.filter((filter) => {
+						const [filter_doctype, fieldname] =
+							filter.length >= 4 ? filter : [doctype, filter[0]];
+						return filter_doctype !== doctype || !fieldnames.includes(fieldname);
+					})
+					.concat(
+						fieldnames.map((fieldname) => [fieldname, ...link_filters[fieldname]])
+					);
+			} else {
+				args.filters = { ...(args.filters || {}), ...link_filters };
+			}
+		}
 	}
 
 	apply_link_field_filters() {
@@ -957,6 +983,17 @@ frappe.ui.form.ControlLink = class ControlLink extends frappe.ui.form.ControlDat
 			)
 			.then((response) => {
 				if (!response) return;
+
+				const has_filters = !!(args.filters && Object.keys(args.filters).length);
+				if (!response.name && has_filters) {
+					frappe.show_alert({
+						message: __("{0}: {1} did not match any results.", [
+							__(this.df.label || this.df.fieldname),
+							value,
+						]),
+						indicator: "red",
+					});
+				}
 
 				update_dependant_fields(response);
 				return response.name;

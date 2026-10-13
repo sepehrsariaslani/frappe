@@ -90,7 +90,18 @@ def delete_doc(
 
 	for name in names or []:
 		if is_virtual:
-			frappe.get_doc(doctype, name).delete()
+			doc = frappe.get_doc(doctype, name)
+			update_flags(doc, flags, ignore_permissions)
+			check_permission_and_not_submitted(doc)
+
+			from frappe.model.document import Document
+
+			if type(doc).delete == Document.delete:
+				frappe.throw(
+					_("{0} is a Virtual DocType and must implement its own delete() method.").format(doctype)
+				)
+
+			doc.delete()
 			continue
 
 		# already deleted..?
@@ -383,13 +394,19 @@ def check_if_doc_is_dynamically_linked(doc, method="Delete"):
 				raise_link_exists_exception(doc, df.parent, df.parent)
 		else:
 			# dynamic link in table
-			df["table"] = ", `parent`, `parenttype`, `idx`" if meta.istable else ""
-			for refdoc in frappe.db.sql(
-				"""select `name`, `docstatus` {table} from `tab{parent}` where
-				`{options}`=%s and `{fieldname}`=%s""".format(**df),
-				(doc.doctype, doc.name),
-				as_dict=True,
-			):
+			RefDoc = DocType(df.parent)
+			fields = [RefDoc.name, RefDoc.docstatus]
+			if meta.istable:
+				fields.extend([RefDoc.parent, RefDoc.parenttype, RefDoc.idx])
+			query = (
+				frappe.qb.from_(RefDoc)
+				.select(*fields)
+				.where(RefDoc[df.options] == doc.doctype)
+				.where(RefDoc[df.fieldname] == doc.name)
+			)
+			if df.parent == "Submission Queue" and method == "Delete":
+				query = query.where(RefDoc.status == "Queued")
+			for refdoc in query.run(as_dict=True):
 				# linked to an non-cancelled doc when deleting
 				# or linked to a submitted doc when cancelling
 				if (method == "Delete" and not DocStatus(refdoc.docstatus).is_cancelled()) or (
@@ -426,6 +443,7 @@ def raise_link_exists_exception(doc, reference_doctype, reference_docname, row="
 
 
 def delete_dynamic_links(doctype, name):
+	delete_references("Submission Queue", doctype, name, "ref_doctype", "ref_docname")
 	delete_references("ToDo", doctype, name, "reference_type")
 	delete_references("Email Unsubscribe", doctype, name)
 	delete_references("DocShare", doctype, name, "share_doctype", "share_name")

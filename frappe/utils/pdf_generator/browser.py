@@ -3,7 +3,7 @@ from typing import ClassVar
 from bs4 import BeautifulSoup
 
 import frappe
-from frappe.utils.data import cint
+from frappe.utils.data import cint, flt
 from frappe.utils.pdf import get_host_url
 from frappe.utils.print_utils import convert_uom, parse_float_and_unit
 
@@ -137,6 +137,8 @@ class Browser:
 		# open header and footer pages
 		self._open_header_footer_pages()
 
+		self._inject_page_no_script(soup)
+
 		# get tags to pass to header template.
 		head = soup.find("head").contents
 		styles = soup.find_all("style")
@@ -176,6 +178,14 @@ class Browser:
 			for tag in soup.find_all(id=html_id):
 				tag.extract()
 
+	def _inject_page_no_script(self, soup):
+		"""Make clone_and_update available to the header and footer pages, which take
+		their <head> contents from the body document."""
+		path = frappe.get_app_path("frappe", "utils", "pdf_generator", "update_page_no.js")
+		tag = soup.new_tag("script")
+		tag.append(soup.new_string(frappe.read_file(path)))
+		soup.head.append(tag)
+
 	def try_async_header_footer_pdf(self):
 		if self.header_page and not self.is_header_dynamic:
 			self.header_page.generate_pdf(wait_for_pdf=False)
@@ -214,12 +224,10 @@ class Browser:
 		)
 
 		if pdf_page_size == "Custom":
-			options["page-height"] = options.get("page-height") or frappe.db.get_single_value(
-				"Print Settings", "pdf_page_height"
-			)
-			options["page-width"] = options.get("page-width") or frappe.db.get_single_value(
-				"Print Settings", "pdf_page_width"
-			)
+			for option, field in (("page-height", "pdf_page_height"), ("page-width", "pdf_page_width")):
+				if not options.get(option):
+					value = frappe.db.get_single_value("Print Settings", field)
+					options[option] = f"{flt(value)}mm" if value else None
 		else:
 			options["page-size"] = pdf_page_size
 
@@ -298,8 +306,10 @@ class Browser:
 		footer_with_bottom_margin = 0
 		footer_height = 0
 
+		header_owns_top_margin = bool(options.get("header-includes-top-margin"))
+
 		if self.header_page:
-			header_with_top_margin = self.header_height + margin_top
+			header_with_top_margin = self.header_height + (0 if header_owns_top_margin else margin_top)
 			header_spacing = options.get("header-spacing", 0)
 			header_with_spacing_top_margin = header_with_top_margin + header_spacing
 			self.header_page.options["paperHeight"] = (
@@ -311,16 +321,18 @@ class Browser:
 		margin_top = convert_uom(margin_top, "px", "in", only_number=True)
 
 		if self.header_page:
-			self.header_page.options["marginTop"] = margin_top
+			self.header_page.options["marginTop"] = 0 if header_owns_top_margin else margin_top
 		else:
 			self.body_page.options["marginTop"] = margin_top
 
 		if self.footer_page:
 			footer_height = self.footer_height
+			footer_with_bottom_margin = footer_height + margin_bottom
 			self.footer_page.options["paperHeight"] = (
-				convert_uom(footer_height, "px", "in", only_number=True) if footer_height else 0
+				convert_uom(footer_with_bottom_margin, "px", "in", only_number=True)
+				if footer_with_bottom_margin
+				else 0
 			)
-			footer_with_bottom_margin = self.footer_height + margin_bottom
 
 		margin_bottom = convert_uom(margin_bottom, "px", "in", only_number=True)
 

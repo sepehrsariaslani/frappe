@@ -52,8 +52,8 @@
 					:progress="progress"
 					:stroke="3"
 				/>
-				<div v-if="uploaded" v-html="frappe.utils.icon('solid-success', 'lg')"></div>
-				<div v-if="file.failed" v-html="frappe.utils.icon('solid-error', 'lg')"></div>
+				<div v-if="uploaded" v-html="frappe.utils.icon('circle-check', 'lg')"></div>
+				<div v-if="file.failed" v-html="frappe.utils.icon('circle-x', 'lg')"></div>
 				<div class="file-action-buttons">
 					<button
 						v-if="is_cropable"
@@ -192,7 +192,7 @@ onMounted(() => {
 .file-preview-outline:hover {
 	background-color: var(--bg-color);
 	border-color: var(--dark-border-color);
-	border-radius: var(--border-radius);
+	border-radius: var(--radius);
 }
 
 .file-preview-outline:hover + .file-preview-outline {
@@ -200,11 +200,11 @@ onMounted(() => {
 }
 
 .file-icon {
-	border-radius: var(--border-radius);
+	border-radius: var(--radius);
 	width: 2.625rem;
 	height: 2.625rem;
 	overflow: hidden;
-	margin-right: var(--margin-md);
+	margin-inline-end: var(--margin-md);
 	flex-shrink: 0;
 }
 
@@ -221,7 +221,7 @@ onMounted(() => {
 	align-items: center;
 	justify-content: center;
 	border: 1px solid var(--border-color);
-	border-radius: var(--border-radius);
+	border-radius: var(--radius);
 }
 
 .file-name {
@@ -242,7 +242,7 @@ onMounted(() => {
 .file-actions {
 	width: 3rem;
 	flex-shrink: 0;
-	margin-left: auto;
+	margin-inline-start: auto;
 	text-align: center;
 }
 
