@@ -42,7 +42,7 @@ from frappe.utils.caching import deprecated_local_cache as local_cache
 from frappe.utils.caching import request_cache, site_cache
 from frappe.utils.data import as_unicode, bold, cint, cstr, safe_decode, safe_encode, sbool
 from frappe.utils.local import Local, LocalProxy, release_local
-from frappe.utils.translations import _, _lt, set_user_lang
+from frappe.utils.translations import N_, _, _lt, set_user_lang
 
 # Local application imports
 from .exceptions import *
@@ -1595,6 +1595,7 @@ from frappe.utils.error import log_error
 from frappe.utils.formatters import format_value
 from frappe.utils.print_utils import get_print, attach_print
 from frappe.email import sendmail
+from frappe.concurrency_limiter import concurrent_limit
 
 # for backwards compatibility
 format = format_value
