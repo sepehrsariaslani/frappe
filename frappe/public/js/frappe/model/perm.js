@@ -36,6 +36,17 @@ $.extend(frappe.perm, {
 
 	doctype_perm: {},
 
+	// Mirror of `frappe.permissions.get_rights()` on the server: the standard rights
+	// plus any custom permission types (Permission Type doctype) defined for `doctype`.
+	// Without this, custom ptypes — though enforced server-side — are silently dropped
+	// client-side. See https://github.com/frappe/frappe/issues/40233
+	get_rights: (doctype) => {
+		const custom_rights = (doctype && frappe.boot?.doctype_ptype_map?.[doctype]) || [];
+		return custom_rights.length
+			? [...frappe.perm.rights, ...custom_rights]
+			: frappe.perm.rights;
+	},
+
 	has_perm: (doctype, permlevel = 0, ptype = "read", doc) => {
 		const perms = frappe.perm.get_perm(doctype, doc);
 		return !!perms?.[permlevel]?.[ptype];
@@ -69,9 +80,6 @@ $.extend(frappe.perm, {
 		let meta = frappe.get_meta(doctype);
 
 		let perm = [{ read: 0, permlevel: 0, rights_without_if_owner: new Set() }];
-
-		let meta = frappe.get_meta(doctype);
-		const user = frappe.session.user;
 
 		if (user === "Administrator" || frappe.user_roles.includes("Administrator")) {
 			perm[0].read = 1;
@@ -112,7 +120,7 @@ $.extend(frappe.perm, {
 
 			// if owner
 			if (doc.owner !== user) {
-				for (const right of frappe.perm.rights) {
+				for (const right of frappe.perm.get_rights(doctype)) {
 					if (base_perm[right] && !base_perm.rights_without_if_owner.has(right)) {
 						base_perm[right] = 0;
 					}
@@ -170,7 +178,7 @@ $.extend(frappe.perm, {
 
 			// if user has this role
 			if (frappe.user_roles.includes(p.role)) {
-				frappe.perm.rights.forEach((right) => {
+				rights.forEach((right) => {
 					if (!p[right]) return;
 
 					current_perm[right] = 1;
