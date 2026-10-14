@@ -190,10 +190,13 @@ frappe.ui.Dock = class Dock {
 
 		this.is_open = false;
 		this.tooltips.forEach((tip) => tip.hide());
-		this.apply_open_state();
 
-		// Focus in a dock turning inert would fall to <body>.
-		if (had_focus && opener?.isConnected) opener.focus();
+		// Move focus out before the dock becomes hidden from assistive technology.
+		if (had_focus) {
+			if (opener?.isConnected && !this.$dock[0].contains(opener)) opener.focus();
+			else document.activeElement?.blur();
+		}
+		this.apply_open_state();
 	}
 
 	// `inert` keeps Tab out of a dock that is off screen but still in the document.

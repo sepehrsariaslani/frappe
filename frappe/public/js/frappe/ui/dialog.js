@@ -91,6 +91,9 @@ frappe.ui.Dialog = class Dialog extends frappe.ui.FieldGroup {
 		var me = this;
 		this.$wrapper
 			.on("hide.bs.modal", function () {
+				if (this.contains(document.activeElement)) {
+					document.activeElement.blur();
+				}
 				me.display = false;
 				me.is_minimized = false;
 				me.hide_scrollbar(false);
