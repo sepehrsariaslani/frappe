@@ -12,7 +12,7 @@ from frappe import _, bold, is_whitelisted, validate_and_sanitize_search_inputs
 from frappe.database.schema import SPECIAL_CHAR_PATTERN
 from frappe.model.db_query import get_order_by
 from frappe.permissions import has_permission
-from frappe.utils import cint, cstr, escape_html, unique
+from frappe.utils import cint, cstr, escape_html, sbool, unique
 from frappe.utils.caching import http_cache
 from frappe.utils.data import make_filter_tuple
 
@@ -62,6 +62,15 @@ def search_link(
 	return build_for_autosuggest(results, doctype=doctype)
 
 
+def make_dict_from_filter_list(filters: list) -> dict:
+	"""Convert a filter list to the dict format expected by custom search queries."""
+	filters_as_dict = {}
+	for filter_row in filters:
+		fieldname, operator, value = filter_row[1], filter_row[2], filter_row[3]
+		filters_as_dict[fieldname] = value if operator == "=" else [operator, value]
+	return filters_as_dict
+
+
 # this is called by the search box
 @frappe.whitelist()
 def search_widget(
@@ -79,6 +88,8 @@ def search_widget(
 	*,
 	link_fieldname: str | None = None,
 	for_link_validation: bool = False,
+	# This is kept temporarily for compatibility with callers that pass filter lists.
+	query_filters_as_dict: bool = False,
 ):
 	if ignore_user_permissions:
 		if reference_doctype and link_fieldname:

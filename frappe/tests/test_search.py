@@ -150,6 +150,29 @@ class TestSearch(IntegrationTestCase):
 				"Search results for 'nutzer' in German should include 'User' ('Nutzer')",
 			)
 
+	def test_custom_query_search_defaults_filter_conversion_off(self):
+		results = search_widget(
+			doctype="DocType",
+			txt="",
+			query="frappe.tests.test_search.query_with_reference_doctype",
+			filters={},
+		)
+
+		self.assertEqual(results, [])
+
+	def test_custom_query_search_can_convert_filter_list_to_dict(self):
+		filters = [["DocType", "name", "=", "User"]]
+		with patch("frappe.desk.search.frappe.call", return_value=[]) as mock_call:
+			search_widget(
+				doctype="DocType",
+				txt="",
+				query="frappe.tests.test_search.query_with_reference_doctype",
+				filters=filters,
+				query_filters_as_dict=True,
+			)
+
+		self.assertEqual(mock_call.call_args.args[6], {"name": "User"})
+
 	def test_translated_doctype_search_pagination(self):
 		doctype = "Test Translated Search Paging"
 		if frappe.db.exists("DocType", doctype):
